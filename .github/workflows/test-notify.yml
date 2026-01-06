@@ -15,6 +15,9 @@ on:
         options:
           - summary
 
+permissions:
+  contents: write
+
 jobs:
   notify-pr:
     if: github.event_name == 'pull_request'
