@@ -41779,10 +41779,42 @@ async function gitExec(command) {
   const { stdout } = await execAsync(command);
   return stdout.trim();
 }
+async function cleanupGitState() {
+  try {
+    await execAsync("git rebase --abort").catch(() => {});
+    await execAsync("git merge --abort").catch(() => {});
+    await execAsync("git reset --hard HEAD").catch(() => {});
+    await execAsync("git clean -fd").catch(() => {});
+  } catch {}
+}
+function getTargetBranch() {
+  const refName = process.env.GITHUB_REF_NAME;
+  const baseRef = process.env.GITHUB_BASE_REF;
+  if (baseRef) {
+    return baseRef;
+  }
+  if (refName && refName !== "merge") {
+    return refName;
+  }
+  return "main";
+}
 async function saveState(state) {
+  const branch = getTargetBranch();
+  core2.info(`Target branch for state: ${branch}`);
   for (let attempt = 1;attempt <= MAX_RETRIES; attempt++) {
     try {
-      await gitExec("git pull origin HEAD --rebase");
+      await cleanupGitState();
+      await gitExec("git fetch origin");
+      try {
+        await gitExec(`git checkout ${branch}`);
+      } catch {
+        await gitExec(`git checkout -b ${branch} origin/${branch}`);
+      }
+      try {
+        await gitExec(`git pull origin ${branch} --no-rebase`);
+      } catch {
+        core2.warning("Pull failed, continuing with current state");
+      }
       const currentState = await readState();
       const mergedState = {
         last_summary_at: state.last_summary_at ?? currentState.last_summary_at,
@@ -41797,7 +41829,7 @@ async function saveState(state) {
         return;
       }
       await gitExec('git commit -m "chore: Slack通知ステート更新"');
-      await gitExec("git push origin HEAD");
+      await gitExec(`git push origin ${branch}`);
       core2.info("State saved successfully");
       return;
     } catch (error) {
@@ -41805,10 +41837,7 @@ async function saveState(state) {
       if (attempt < MAX_RETRIES) {
         core2.info(`Retrying in ${RETRY_DELAY_MS}ms...`);
         await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
-        try {
-          await gitExec("git reset --hard HEAD");
-          await gitExec("git clean -fd");
-        } catch {}
+        await cleanupGitState();
       } else {
         core2.warning("All retry attempts failed. Notification was sent but state may be lost.");
       }
