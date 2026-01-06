@@ -1,6 +1,6 @@
 import { WebClient } from '@slack/web-api';
 import type { KnownBlock } from '@slack/web-api';
-import { COLORS, type Author } from './types.js';
+import { COLORS } from './types.js';
 
 let client: WebClient | null = null;
 
@@ -62,29 +62,25 @@ export function buildPRBlocks(params: {
   url: string;
   number: number;
   repo: string;
-  author: Author;
+  author: string;
   body?: string;
 }): KnownBlock[] {
   const { action, title, url, number, repo, author, body } = params;
 
   let emoji: string;
-  let color: string;
   let statusText: string;
 
   switch (action) {
     case 'opened':
       emoji = '🚀';
-      color = COLORS.OPEN;
       statusText = 'opened';
       break;
     case 'merged':
       emoji = '✅';
-      color = COLORS.MERGED;
       statusText = 'merged';
       break;
     case 'closed':
       emoji = '❌';
-      color = COLORS.CLOSED;
       statusText = 'closed';
       break;
   }
@@ -103,18 +99,13 @@ export function buildPRBlocks(params: {
         type: 'mrkdwn',
         text: `<${url}|#${number}: ${title}>`,
       },
-      accessory: {
-        type: 'image',
-        image_url: author.avatar_url,
-        alt_text: author.login,
-      },
     },
     {
       type: 'context',
       elements: [
         {
           type: 'mrkdwn',
-          text: `📁 ${repo} • 👤 ${author.login}`,
+          text: `📁 ${repo} • 👤 ${author}`,
         },
       ],
     },
@@ -141,7 +132,7 @@ export function buildIssueBlocks(params: {
   url: string;
   number: number;
   repo: string;
-  author: Author;
+  author: string;
   body?: string;
 }): KnownBlock[] {
   const { action, title, url, number, repo, author, body } = params;
@@ -163,18 +154,13 @@ export function buildIssueBlocks(params: {
         type: 'mrkdwn',
         text: `<${url}|#${number}: ${title}>`,
       },
-      accessory: {
-        type: 'image',
-        image_url: author.avatar_url,
-        alt_text: author.login,
-      },
     },
     {
       type: 'context',
       elements: [
         {
           type: 'mrkdwn',
-          text: `📁 ${repo} • 👤 ${author.login}`,
+          text: `📁 ${repo} • 👤 ${author}`,
         },
       ],
     },

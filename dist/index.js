@@ -40849,17 +40849,6 @@ var github = __toESM(require_github(), 1);
 
 // src/slack.ts
 var import_web_api = __toESM(require_dist4(), 1);
-
-// src/types.ts
-var COLORS = {
-  OPEN: "#2196F3",
-  MERGED: "#4CAF50",
-  CLOSED: "#F44336",
-  SUCCESS: "#4CAF50",
-  FAILURE: "#F44336"
-};
-
-// src/slack.ts
 var client = null;
 function initSlackClient(token) {
   client = new import_web_api.WebClient(token);
@@ -40902,22 +40891,18 @@ async function deleteMessage(channel, ts) {
 function buildPRBlocks(params) {
   const { action, title, url, number, repo, author, body } = params;
   let emoji;
-  let color;
   let statusText;
   switch (action) {
     case "opened":
       emoji = "\uD83D\uDE80";
-      color = COLORS.OPEN;
       statusText = "opened";
       break;
     case "merged":
       emoji = "✅";
-      color = COLORS.MERGED;
       statusText = "merged";
       break;
     case "closed":
       emoji = "❌";
-      color = COLORS.CLOSED;
       statusText = "closed";
       break;
   }
@@ -40934,11 +40919,6 @@ function buildPRBlocks(params) {
       text: {
         type: "mrkdwn",
         text: `<${url}|#${number}: ${title}>`
-      },
-      accessory: {
-        type: "image",
-        image_url: author.avatar_url,
-        alt_text: author.login
       }
     },
     {
@@ -40946,7 +40926,7 @@ function buildPRBlocks(params) {
       elements: [
         {
           type: "mrkdwn",
-          text: `\uD83D\uDCC1 ${repo} • \uD83D\uDC64 ${author.login}`
+          text: `\uD83D\uDCC1 ${repo} • \uD83D\uDC64 ${author}`
         }
       ]
     }
@@ -40980,11 +40960,6 @@ function buildIssueBlocks(params) {
       text: {
         type: "mrkdwn",
         text: `<${url}|#${number}: ${title}>`
-      },
-      accessory: {
-        type: "image",
-        image_url: author.avatar_url,
-        alt_text: author.login
       }
     },
     {
@@ -40992,7 +40967,7 @@ function buildIssueBlocks(params) {
       elements: [
         {
           type: "mrkdwn",
-          text: `\uD83D\uDCC1 ${repo} • \uD83D\uDC64 ${author.login}`
+          text: `\uD83D\uDCC1 ${repo} • \uD83D\uDC64 ${author}`
         }
       ]
     }
@@ -42055,10 +42030,7 @@ async function handlePullRequest(inputs) {
   const prTitle = pr.title || `PR #${pr.number}`;
   const prUrl = pr.html_url || `https://github.com/${repo.owner}/${repo.repo}/pull/${pr.number}`;
   const prBody = pr.body || undefined;
-  const author = {
-    login: pr.user?.login || "unknown",
-    avatar_url: pr.user?.avatar_url || "https://github.com/ghost.png"
-  };
+  const author = pr.user?.login || "unknown";
   const state = await readState();
   if (prEvent === "opened") {
     const blocks = buildPRBlocks({
@@ -42149,10 +42121,7 @@ async function handleIssue(inputs) {
   const issueTitle = issue.title || `Issue #${issue.number}`;
   const issueUrl = issue.html_url || `https://github.com/${repo.owner}/${repo.repo}/issues/${issue.number}`;
   const issueBody = issue.body || undefined;
-  const author = {
-    login: issue.user?.login || "unknown",
-    avatar_url: issue.user?.avatar_url || "https://github.com/ghost.png"
-  };
+  const author = issue.user?.login || "unknown";
   const state = await readState();
   if (issueEvent === "opened") {
     const blocks = buildIssueBlocks({

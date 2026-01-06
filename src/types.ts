@@ -1,12 +1,6 @@
 // Event types
 export type EventType = 'pull_request' | 'issues' | 'workflow_run' | 'summary';
 
-// Author info
-export interface Author {
-  login: string;
-  avatar_url: string;
-}
-
 // PR entry in state
 export interface PullRequestEntry {
   channel: string;
@@ -16,7 +10,7 @@ export interface PullRequestEntry {
   title: string;
   url: string;
   repo: string;
-  author: Author;
+  author: string;
 }
 
 // Issue entry in state
@@ -28,7 +22,7 @@ export interface IssueEntry {
   title: string;
   url: string;
   repo: string;
-  author: Author;
+  author: string;
 }
 
 // State file structure

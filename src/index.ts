@@ -4,7 +4,7 @@ import { initSlackClient, postMessage, buildPRBlocks, buildIssueBlocks, buildWor
 import { initGitHubClient, isIssueLinkedToProject, shouldNotifyByLabels } from './github.js';
 import { readState, saveState, addPREntry, getPREntry, addIssueEntry, getIssueEntry } from './state.js';
 import { runSummary } from './summary.js';
-import type { ActionInputs, EventType, Author } from './types.js';
+import type { ActionInputs, EventType } from './types.js';
 
 // Parse inputs from environment variables
 function getInputs(): ActionInputs {
@@ -75,11 +75,7 @@ async function handlePullRequest(inputs: ActionInputs): Promise<void> {
   const prTitle = pr.title || `PR #${pr.number}`;
   const prUrl = pr.html_url || `https://github.com/${repo.owner}/${repo.repo}/pull/${pr.number}`;
   const prBody = pr.body || undefined;
-
-  const author: Author = {
-    login: pr.user?.login || 'unknown',
-    avatar_url: pr.user?.avatar_url || 'https://github.com/ghost.png',
-  };
+  const author = pr.user?.login || 'unknown';
 
   const state = await readState();
 
@@ -200,11 +196,7 @@ async function handleIssue(inputs: ActionInputs): Promise<void> {
   const issueTitle = issue.title || `Issue #${issue.number}`;
   const issueUrl = issue.html_url || `https://github.com/${repo.owner}/${repo.repo}/issues/${issue.number}`;
   const issueBody = issue.body || undefined;
-
-  const author: Author = {
-    login: issue.user?.login || 'unknown',
-    avatar_url: issue.user?.avatar_url || 'https://github.com/ghost.png',
-  };
+  const author = issue.user?.login || 'unknown';
 
   const state = await readState();
 
