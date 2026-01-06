@@ -46,12 +46,65 @@ async function gitExec(command: string): Promise<string> {
   return stdout.trim();
 }
 
+// Clean up any git state issues
+async function cleanupGitState(): Promise<void> {
+  try {
+    await execAsync('git rebase --abort').catch(() => {});
+    await execAsync('git merge --abort').catch(() => {});
+    await execAsync('git reset --hard HEAD').catch(() => {});
+    await execAsync('git clean -fd').catch(() => {});
+  } catch {
+    // Ignore cleanup errors
+  }
+}
+
+// Get the target branch for pushing state
+function getTargetBranch(): string {
+  // For PR events, use the base branch (main/master)
+  // For other events, use GITHUB_REF_NAME
+  const refName = process.env.GITHUB_REF_NAME;
+  const baseRef = process.env.GITHUB_BASE_REF; // Set for PR events
+
+  if (baseRef) {
+    // PR event - push to base branch
+    return baseRef;
+  }
+
+  if (refName && refName !== 'merge') {
+    return refName;
+  }
+
+  // Fallback to main
+  return 'main';
+}
+
 // Save state with git commit and push (with retry)
 export async function saveState(state: NotificationState): Promise<void> {
+  const branch = getTargetBranch();
+  core.info(`Target branch for state: ${branch}`);
+
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      // Pull latest changes
-      await gitExec('git pull origin HEAD --rebase');
+      // Always clean up first
+      await cleanupGitState();
+
+      // Fetch latest from remote
+      await gitExec('git fetch origin');
+
+      // Checkout the target branch
+      try {
+        await gitExec(`git checkout ${branch}`);
+      } catch {
+        // If branch doesn't exist locally, create it from origin
+        await gitExec(`git checkout -b ${branch} origin/${branch}`);
+      }
+
+      // Pull latest changes (no rebase, just merge)
+      try {
+        await gitExec(`git pull origin ${branch} --no-rebase`);
+      } catch {
+        core.warning('Pull failed, continuing with current state');
+      }
 
       // Read current state and merge
       const currentState = await readState();
@@ -75,7 +128,7 @@ export async function saveState(state: NotificationState): Promise<void> {
       }
 
       await gitExec('git commit -m "chore: Slack通知ステート更新"');
-      await gitExec('git push origin HEAD');
+      await gitExec(`git push origin ${branch}`);
 
       core.info('State saved successfully');
       return;
@@ -85,14 +138,7 @@ export async function saveState(state: NotificationState): Promise<void> {
       if (attempt < MAX_RETRIES) {
         core.info(`Retrying in ${RETRY_DELAY_MS}ms...`);
         await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
-
-        // Reset any local changes before retry
-        try {
-          await gitExec('git reset --hard HEAD');
-          await gitExec('git clean -fd');
-        } catch {
-          // Ignore reset errors
-        }
+        await cleanupGitState();
       } else {
         core.warning('All retry attempts failed. Notification was sent but state may be lost.');
       }
