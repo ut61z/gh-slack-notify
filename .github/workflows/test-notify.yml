@@ -1,0 +1,54 @@
+name: Test Slack Notify
+
+on:
+  pull_request:
+    types: [opened, closed]
+  issues:
+    types: [opened, closed]
+  workflow_dispatch:
+    inputs:
+      event_type:
+        description: 'Event type to test'
+        required: true
+        default: 'summary'
+        type: choice
+        options:
+          - summary
+
+jobs:
+  notify-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          event_type: pull_request
+          slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  notify-issue:
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          event_type: issues
+          slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          exclude_project_issues: 'true'
+
+  test-summary:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          event_type: summary
+          slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
