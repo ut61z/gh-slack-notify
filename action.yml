@@ -1,0 +1,69 @@
+name: 'GitHub Slack Notify'
+description: 'Send GitHub events to Slack with thread replies and daily summaries'
+author: 'ut61z'
+
+branding:
+  icon: 'message-circle'
+  color: 'purple'
+
+inputs:
+  event_type:
+    description: 'Event type: pull_request, issues, workflow_run, or summary'
+    required: true
+  slack_token:
+    description: 'Slack Bot Token (xoxb-...)'
+    required: true
+  slack_channel:
+    description: 'Slack channel ID (C01234567)'
+    required: true
+  github_token:
+    description: 'GitHub Token for API access and state management'
+    required: true
+  label_filter_mode:
+    description: 'Label filter mode: whitelist or blacklist'
+    required: false
+    default: ''
+  filter_labels:
+    description: 'Comma-separated labels to filter (e.g., "notify-slack" or "wip,draft")'
+    required: false
+    default: ''
+  exclude_project_issues:
+    description: 'Exclude issues linked to GitHub Projects'
+    required: false
+    default: 'true'
+  workflow_names:
+    description: 'Comma-separated workflow names to notify (for workflow_run events)'
+    required: false
+    default: ''
+  notify_on:
+    description: 'When to notify for workflow_run: success,failure or failure'
+    required: false
+    default: 'success,failure'
+
+outputs:
+  message_ts:
+    description: 'Slack message timestamp (for thread replies)'
+  notified:
+    description: 'Whether a notification was sent (true/false)'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Run notification
+      shell: bash
+      env:
+        INPUT_EVENT_TYPE: ${{ inputs.event_type }}
+        INPUT_SLACK_TOKEN: ${{ inputs.slack_token }}
+        INPUT_SLACK_CHANNEL: ${{ inputs.slack_channel }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+        INPUT_LABEL_FILTER_MODE: ${{ inputs.label_filter_mode }}
+        INPUT_FILTER_LABELS: ${{ inputs.filter_labels }}
+        INPUT_EXCLUDE_PROJECT_ISSUES: ${{ inputs.exclude_project_issues }}
+        INPUT_WORKFLOW_NAMES: ${{ inputs.workflow_names }}
+        INPUT_NOTIFY_ON: ${{ inputs.notify_on }}
+      run: node ${{ github.action_path }}/dist/index.js
