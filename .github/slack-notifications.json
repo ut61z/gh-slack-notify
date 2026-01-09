@@ -42,11 +42,12 @@
       "channel": "C09KRV8HXAS",
       "message_ts": "1767945705.810019",
       "created_at": "2026-01-09T08:01:45.866Z",
-      "event": "opened",
+      "event": "merged",
       "title": "feat: PR close/merge時の通知をチャンネルにも表示",
       "url": "https://github.com/ut61z/gh-slack-notify/pull/5",
       "repo": "gh-slack-notify",
-      "author": "ut61z"
+      "author": "ut61z",
+      "reply_message_ts": "1767946947.347459"
     }
   },
   "issues": {}
