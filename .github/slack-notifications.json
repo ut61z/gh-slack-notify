@@ -1,54 +1,5 @@
 {
-  "last_summary_at": "2026-01-09T07:51:24.835Z",
-  "pull_requests": {
-    "2": {
-      "channel": "C09KRV8HXAS",
-      "message_ts": "1767694720.748859",
-      "created_at": "2026-01-06T10:18:40.831Z",
-      "event": "merged",
-      "title": "test: test workflow",
-      "url": "https://github.com/ut61z/gh-slack-notify/pull/2",
-      "repo": "gh-slack-notify",
-      "author": {
-        "login": "ut61z",
-        "avatar_url": "https://avatars.githubusercontent.com/u/12869180?v=4"
-      }
-    },
-    "3": {
-      "channel": "C09KRV8HXAS",
-      "message_ts": "1767694920.920149",
-      "created_at": "2026-01-06T10:22:00.955Z",
-      "event": "merged",
-      "title": "chore: pinact",
-      "url": "https://github.com/ut61z/gh-slack-notify/pull/3",
-      "repo": "gh-slack-notify",
-      "author": {
-        "login": "ut61z",
-        "avatar_url": "https://avatars.githubusercontent.com/u/12869180?v=4"
-      }
-    },
-    "4": {
-      "channel": "C09KRV8HXAS",
-      "message_ts": "1767944934.303419",
-      "created_at": "2026-01-09T07:48:54.397Z",
-      "event": "merged",
-      "title": "fix: summaryでmerged/closedの返信メッセージも削除するように修正",
-      "url": "https://github.com/ut61z/gh-slack-notify/pull/4",
-      "repo": "gh-slack-notify",
-      "author": "ut61z",
-      "reply_message_ts": "1767945003.456589"
-    },
-    "5": {
-      "channel": "C09KRV8HXAS",
-      "message_ts": "1767945705.810019",
-      "created_at": "2026-01-09T08:01:45.866Z",
-      "event": "merged",
-      "title": "feat: PR close/merge時の通知をチャンネルにも表示",
-      "url": "https://github.com/ut61z/gh-slack-notify/pull/5",
-      "repo": "gh-slack-notify",
-      "author": "ut61z",
-      "reply_message_ts": "1767946947.347459"
-    }
-  },
+  "last_summary_at": "2026-01-09T08:29:27.797Z",
+  "pull_requests": {},
   "issues": {}
 }
