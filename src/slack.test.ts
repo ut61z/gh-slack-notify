@@ -16,7 +16,7 @@ describe('buildPRBlocks', () => {
       const blocks = buildPRBlocks({ ...baseParams, action: 'opened' });
 
       expect(blocks).toHaveLength(3);
-      expect(blocks[0].type).toBe('section');
+      expect(blocks[0]!.type).toBe('section');
       expect((blocks[0] as SectionBlock).text?.text).toContain('🚀');
       expect((blocks[0] as SectionBlock).text?.text).toContain('opened');
     });

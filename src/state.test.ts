@@ -59,7 +59,7 @@ describe('PR Entry 操作', () => {
       addPREntry(state, '1', entry1);
       addPREntry(state, '1', entry2);
 
-      expect(state.pull_requests['1'].event).toBe('merged');
+      expect(state.pull_requests['1']!.event).toBe('merged');
     });
   });
 
