@@ -125,7 +125,8 @@ async function handlePullRequest(inputs: ActionInputs): Promise<void> {
       inputs.slackChannel,
       blocks,
       `PR #${pr.number} ${prEvent}`,
-      threadTs
+      threadTs,
+      true // reply_broadcast: チャンネルにも通知
     );
 
     // Update state

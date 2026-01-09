@@ -40860,16 +40860,20 @@ function getSlackClient() {
   }
   return client;
 }
-async function postMessage(channel, blocks, text, threadTs) {
+async function postMessage(channel, blocks, text, threadTs, replyBroadcast) {
   const slack = getSlackClient();
-  const result = await slack.chat.postMessage({
+  const baseOptions = {
     channel,
     blocks,
     text,
-    thread_ts: threadTs,
     unfurl_links: false,
     unfurl_media: false
-  });
+  };
+  const result = threadTs ? await slack.chat.postMessage({
+    ...baseOptions,
+    thread_ts: threadTs,
+    reply_broadcast: replyBroadcast ?? false
+  }) : await slack.chat.postMessage(baseOptions);
   if (!result.ok || !result.ts) {
     throw new Error(`Failed to post message: ${result.error}`);
   }
@@ -42106,7 +42110,7 @@ async function handlePullRequest(inputs) {
       repo: repo.repo,
       author
     });
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number} ${prEvent}`, threadTs);
+    const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number} ${prEvent}`, threadTs, true);
     if (existingEntry) {
       existingEntry.event = prEvent;
       existingEntry.reply_message_ts = messageTs;
