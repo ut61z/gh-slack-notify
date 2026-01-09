@@ -40900,7 +40900,7 @@ async function deleteMessage(channel, ts) {
   }
 }
 function buildPRBlocks(params) {
-  const { action, title, url, number, repo, author, body } = params;
+  const { action, title, url, number, repo, author, body, reviewers } = params;
   let emoji;
   let statusText;
   switch (action) {
@@ -40937,11 +40937,22 @@ function buildPRBlocks(params) {
       elements: [
         {
           type: "mrkdwn",
-          text: `\uD83D\uDCC1 ${repo} • \uD83D\uDC64 ${author}`
+          text: `\uD83C\uDFF0 ${repo} • \uD83E\uDEC5 ${author}`
         }
       ]
     }
   ];
+  if (reviewers && reviewers.length > 0) {
+    blocks.push({
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `\uD83D\uDC40 Reviewers: ${reviewers.join(", ")}`
+        }
+      ]
+    });
+  }
   if (body && action === "opened") {
     const truncatedBody = body.length > 200 ? body.substring(0, 200) + "..." : body;
     blocks.push({
@@ -40978,7 +40989,7 @@ function buildIssueBlocks(params) {
       elements: [
         {
           type: "mrkdwn",
-          text: `\uD83D\uDCC1 ${repo} • \uD83D\uDC64 ${author}`
+          text: `\uD83C\uDFF0 ${repo} • \uD83E\uDEC5 ${author}`
         }
       ]
     }
@@ -41020,7 +41031,7 @@ function buildWorkflowBlocks(params) {
       elements: [
         {
           type: "mrkdwn",
-          text: `\uD83D\uDCC1 ${repo} • \uD83C\uDF3F ${branch}${durationText}`
+          text: `\uD83C\uDFF0 ${repo} • \uD83C\uDF3F ${branch}${durationText}`
         }
       ]
     }
@@ -42096,6 +42107,7 @@ async function handlePullRequest(inputs) {
   const prUrl = pr.html_url || `https://github.com/${repo.owner}/${repo.repo}/pull/${pr.number}`;
   const prBody = pr.body || undefined;
   const author = pr.user?.login || "unknown";
+  const reviewers = (pr.requested_reviewers || []).map((r) => r.login);
   const state = await readState();
   if (prEvent === "opened") {
     const blocks = buildPRBlocks({
@@ -42105,9 +42117,10 @@ async function handlePullRequest(inputs) {
       number: pr.number,
       repo: repo.repo,
       author,
-      body: prBody
+      body: prBody,
+      reviewers
     });
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number}: ${prTitle}`, {
+    const messageTs = await postMessage(inputs.slackChannel, blocks, "", {
       color: COLORS.OPEN
     });
     addPREntry(state, prNumber, {
@@ -42131,10 +42144,11 @@ async function handlePullRequest(inputs) {
       url: prUrl,
       number: pr.number,
       repo: repo.repo,
-      author
+      author,
+      reviewers
     });
     const color = prEvent === "merged" ? COLORS.MERGED : COLORS.CLOSED;
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number} ${prEvent}`, {
+    const messageTs = await postMessage(inputs.slackChannel, blocks, "", {
       threadTs,
       replyBroadcast: true,
       color
@@ -42206,7 +42220,7 @@ async function handleIssue(inputs) {
       author,
       body: issueBody
     });
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `Issue #${issue.number}: ${issueTitle}`, {
+    const messageTs = await postMessage(inputs.slackChannel, blocks, "", {
       color: COLORS.OPEN
     });
     addIssueEntry(state, issueNumber, {
@@ -42232,7 +42246,7 @@ async function handleIssue(inputs) {
       repo: repo.repo,
       author
     });
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `Issue #${issue.number} closed`, {
+    const messageTs = await postMessage(inputs.slackChannel, blocks, "", {
       threadTs,
       color: COLORS.CLOSED
     });
@@ -42290,7 +42304,7 @@ async function handleWorkflowRun(inputs) {
     duration
   });
   const color = conclusion === "success" ? COLORS.SUCCESS : COLORS.FAILURE;
-  await postMessage(inputs.slackChannel, blocks, `Workflow ${workflowName} ${conclusion}`, {
+  await postMessage(inputs.slackChannel, blocks, "", {
     color
   });
   core4.setOutput("notified", "true");

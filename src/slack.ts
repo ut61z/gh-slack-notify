@@ -86,8 +86,9 @@ export function buildPRBlocks(params: {
   repo: string;
   author: string;
   body?: string;
+  reviewers?: string[];
 }): KnownBlock[] {
-  const { action, title, url, number, repo, author, body } = params;
+  const { action, title, url, number, repo, author, body, reviewers } = params;
 
   let emoji: string;
   let statusText: string;
@@ -127,11 +128,24 @@ export function buildPRBlocks(params: {
       elements: [
         {
           type: 'mrkdwn',
-          text: `📁 ${repo} • 👤 ${author}`,
+          text: `🏰 ${repo} • 🫅 ${author}`,
         },
       ],
     },
   ];
+
+  // レビュアー情報を追加
+  if (reviewers && reviewers.length > 0) {
+    blocks.push({
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: `👀 Reviewers: ${reviewers.join(', ')}`,
+        },
+      ],
+    });
+  }
 
   if (body && action === 'opened') {
     const truncatedBody = body.length > 200 ? body.substring(0, 200) + '...' : body;
@@ -182,7 +196,7 @@ export function buildIssueBlocks(params: {
       elements: [
         {
           type: 'mrkdwn',
-          text: `📁 ${repo} • 👤 ${author}`,
+          text: `🏰 ${repo} • 🫅 ${author}`,
         },
       ],
     },
@@ -238,7 +252,7 @@ export function buildWorkflowBlocks(params: {
       elements: [
         {
           type: 'mrkdwn',
-          text: `📁 ${repo} • 🌿 ${branch}${durationText}`,
+          text: `🏰 ${repo} • 🌿 ${branch}${durationText}`,
         },
       ],
     },

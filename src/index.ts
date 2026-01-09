@@ -76,6 +76,7 @@ async function handlePullRequest(inputs: ActionInputs): Promise<void> {
   const prUrl = pr.html_url || `https://github.com/${repo.owner}/${repo.repo}/pull/${pr.number}`;
   const prBody = pr.body || undefined;
   const author = pr.user?.login || 'unknown';
+  const reviewers = (pr.requested_reviewers || []).map((r: { login: string }) => r.login);
 
   const state = await readState();
 
@@ -89,9 +90,10 @@ async function handlePullRequest(inputs: ActionInputs): Promise<void> {
       repo: repo.repo,
       author,
       body: prBody,
+      reviewers,
     });
 
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number}: ${prTitle}`, {
+    const messageTs = await postMessage(inputs.slackChannel, blocks, '', {
       color: COLORS.OPEN,
     });
 
@@ -121,10 +123,11 @@ async function handlePullRequest(inputs: ActionInputs): Promise<void> {
       number: pr.number,
       repo: repo.repo,
       author,
+      reviewers,
     });
 
     const color = prEvent === 'merged' ? COLORS.MERGED : COLORS.CLOSED;
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number} ${prEvent}`, {
+    const messageTs = await postMessage(inputs.slackChannel, blocks, '', {
       threadTs,
       replyBroadcast: true,
       color,
@@ -215,7 +218,7 @@ async function handleIssue(inputs: ActionInputs): Promise<void> {
       body: issueBody,
     });
 
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `Issue #${issue.number}: ${issueTitle}`, {
+    const messageTs = await postMessage(inputs.slackChannel, blocks, '', {
       color: COLORS.OPEN,
     });
 
@@ -247,7 +250,7 @@ async function handleIssue(inputs: ActionInputs): Promise<void> {
       author,
     });
 
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `Issue #${issue.number} closed`, {
+    const messageTs = await postMessage(inputs.slackChannel, blocks, '', {
       threadTs,
       color: COLORS.CLOSED,
     });
@@ -323,7 +326,7 @@ async function handleWorkflowRun(inputs: ActionInputs): Promise<void> {
   });
 
   const color = conclusion === 'success' ? COLORS.SUCCESS : COLORS.FAILURE;
-  await postMessage(inputs.slackChannel, blocks, `Workflow ${workflowName} ${conclusion}`, {
+  await postMessage(inputs.slackChannel, blocks, '', {
     color,
   });
 
