@@ -189,19 +189,29 @@ async function deleteTrackedMessages(
   state: NotificationState,
   channel: string
 ): Promise<void> {
-  const messagesToDelete: Array<{ type: string; number: string; ts: string }> = [];
+  const messagesToDelete: Array<{ type: string; number: string; ts: string; isReply?: boolean }> = [];
 
   // Collect PR messages
   for (const [number, entry] of Object.entries(state.pull_requests)) {
-    if (entry.channel === channel && entry.message_ts) {
-      messagesToDelete.push({ type: 'PR', number, ts: entry.message_ts });
+    if (entry.channel === channel) {
+      if (entry.message_ts) {
+        messagesToDelete.push({ type: 'PR', number, ts: entry.message_ts });
+      }
+      if (entry.reply_message_ts) {
+        messagesToDelete.push({ type: 'PR', number, ts: entry.reply_message_ts, isReply: true });
+      }
     }
   }
 
   // Collect Issue messages
   for (const [number, entry] of Object.entries(state.issues)) {
-    if (entry.channel === channel && entry.message_ts) {
-      messagesToDelete.push({ type: 'Issue', number, ts: entry.message_ts });
+    if (entry.channel === channel) {
+      if (entry.message_ts) {
+        messagesToDelete.push({ type: 'Issue', number, ts: entry.message_ts });
+      }
+      if (entry.reply_message_ts) {
+        messagesToDelete.push({ type: 'Issue', number, ts: entry.reply_message_ts, isReply: true });
+      }
     }
   }
 
@@ -209,10 +219,11 @@ async function deleteTrackedMessages(
 
   for (const msg of messagesToDelete) {
     const success = await deleteMessage(channel, msg.ts);
+    const msgType = msg.isReply ? `${msg.type} reply` : msg.type;
     if (success) {
-      core.info(`Deleted ${msg.type} #${msg.number} message`);
+      core.info(`Deleted ${msgType} #${msg.number} message`);
     } else {
-      core.warning(`Failed to delete ${msg.type} #${msg.number} message`);
+      core.warning(`Failed to delete ${msgType} #${msg.number} message`);
     }
   }
 }
