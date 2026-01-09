@@ -40937,7 +40937,7 @@ function buildPRBlocks(params) {
       elements: [
         {
           type: "mrkdwn",
-          text: `\uD83D\uDCC1 ${repo} • \uD83D\uDC64 ${author}`
+          text: `\uD83C\uDFF0 ${repo} • \uD83E\uDEC5 ${author}`
         }
       ]
     }
@@ -40989,7 +40989,7 @@ function buildIssueBlocks(params) {
       elements: [
         {
           type: "mrkdwn",
-          text: `\uD83D\uDCC1 ${repo} • \uD83D\uDC64 ${author}`
+          text: `\uD83C\uDFF0 ${repo} • \uD83E\uDEC5 ${author}`
         }
       ]
     }
@@ -41031,7 +41031,7 @@ function buildWorkflowBlocks(params) {
       elements: [
         {
           type: "mrkdwn",
-          text: `\uD83D\uDCC1 ${repo} • \uD83C\uDF3F ${branch}${durationText}`
+          text: `\uD83C\uDFF0 ${repo} • \uD83C\uDF3F ${branch}${durationText}`
         }
       ]
     }

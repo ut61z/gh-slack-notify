@@ -128,7 +128,7 @@ export function buildPRBlocks(params: {
       elements: [
         {
           type: 'mrkdwn',
-          text: `📁 ${repo} • 👤 ${author}`,
+          text: `🏰 ${repo} • 🫅 ${author}`,
         },
       ],
     },
@@ -196,7 +196,7 @@ export function buildIssueBlocks(params: {
       elements: [
         {
           type: 'mrkdwn',
-          text: `📁 ${repo} • 👤 ${author}`,
+          text: `🏰 ${repo} • 🫅 ${author}`,
         },
       ],
     },
@@ -252,7 +252,7 @@ export function buildWorkflowBlocks(params: {
       elements: [
         {
           type: 'mrkdwn',
-          text: `📁 ${repo} • 🌿 ${branch}${durationText}`,
+          text: `🏰 ${repo} • 🌿 ${branch}${durationText}`,
         },
       ],
     },
