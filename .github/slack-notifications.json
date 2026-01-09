@@ -1,5 +1,16 @@
 {
   "last_summary_at": "2026-01-09T08:29:27.797Z",
-  "pull_requests": {},
+  "pull_requests": {
+    "6": {
+      "channel": "C09KRV8HXAS",
+      "message_ts": "1767949510.519609",
+      "created_at": "2026-01-09T09:05:10.601Z",
+      "event": "opened",
+      "title": "test: unit testを記述",
+      "url": "https://github.com/ut61z/gh-slack-notify/pull/6",
+      "repo": "gh-slack-notify",
+      "author": "ut61z"
+    }
+  },
   "issues": {}
 }
