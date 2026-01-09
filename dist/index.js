@@ -41784,7 +41784,7 @@ function getTargetBranch() {
   }
   return "main";
 }
-async function saveState(state) {
+async function saveState(state, skipMerge = false) {
   const branch = getTargetBranch();
   core2.info(`Target branch for state: ${branch}`);
   for (let attempt = 1;attempt <= MAX_RETRIES; attempt++) {
@@ -41801,13 +41801,18 @@ async function saveState(state) {
       } catch {
         core2.warning("Pull failed, continuing with current state");
       }
-      const currentState = await readState();
-      const mergedState = {
-        last_summary_at: state.last_summary_at ?? currentState.last_summary_at,
-        pull_requests: { ...currentState.pull_requests, ...state.pull_requests },
-        issues: { ...currentState.issues, ...state.issues }
-      };
-      await writeState(mergedState);
+      let stateToWrite;
+      if (skipMerge) {
+        stateToWrite = state;
+      } else {
+        const currentState = await readState();
+        stateToWrite = {
+          last_summary_at: state.last_summary_at ?? currentState.last_summary_at,
+          pull_requests: { ...currentState.pull_requests, ...state.pull_requests },
+          issues: { ...currentState.issues, ...state.issues }
+        };
+      }
+      await writeState(stateToWrite);
       await gitExec(`git add ${STATE_FILE_PATH}`);
       const status = await gitExec("git status --porcelain");
       if (!status.includes(STATE_FILE_PATH)) {
@@ -42027,7 +42032,7 @@ async function runSummary(channel) {
   await deleteTrackedMessages(state, channel);
   clearEntries(state);
   updateLastSummaryAt(state);
-  await saveState(state);
+  await saveState(state, true);
   core3.info("Daily summary completed");
 }
 
