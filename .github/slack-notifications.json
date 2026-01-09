@@ -5,11 +5,12 @@
       "channel": "C09KRV8HXAS",
       "message_ts": "1767949510.519609",
       "created_at": "2026-01-09T09:05:10.601Z",
-      "event": "opened",
+      "event": "merged",
       "title": "test: unit testを記述",
       "url": "https://github.com/ut61z/gh-slack-notify/pull/6",
       "repo": "gh-slack-notify",
-      "author": "ut61z"
+      "author": "ut61z",
+      "reply_message_ts": "1767955085.858889"
     }
   },
   "issues": {}
