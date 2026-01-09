@@ -4,7 +4,7 @@ import { initSlackClient, postMessage, buildPRBlocks, buildIssueBlocks, buildWor
 import { initGitHubClient, isIssueLinkedToProject, shouldNotifyByLabels } from './github.js';
 import { readState, saveState, addPREntry, getPREntry, addIssueEntry, getIssueEntry } from './state.js';
 import { runSummary } from './summary.js';
-import type { ActionInputs, EventType } from './types.js';
+import { COLORS, type ActionInputs, type EventType } from './types.js';
 
 // Parse inputs from environment variables
 function getInputs(): ActionInputs {
@@ -91,7 +91,9 @@ async function handlePullRequest(inputs: ActionInputs): Promise<void> {
       body: prBody,
     });
 
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number}: ${prTitle}`);
+    const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number}: ${prTitle}`, {
+      color: COLORS.OPEN,
+    });
 
     // Save to state
     addPREntry(state, prNumber, {
@@ -121,13 +123,12 @@ async function handlePullRequest(inputs: ActionInputs): Promise<void> {
       author,
     });
 
-    const messageTs = await postMessage(
-      inputs.slackChannel,
-      blocks,
-      `PR #${pr.number} ${prEvent}`,
+    const color = prEvent === 'merged' ? COLORS.MERGED : COLORS.CLOSED;
+    const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number} ${prEvent}`, {
       threadTs,
-      true // reply_broadcast: チャンネルにも通知
-    );
+      replyBroadcast: true,
+      color,
+    });
 
     // Update state
     if (existingEntry) {
@@ -214,7 +215,9 @@ async function handleIssue(inputs: ActionInputs): Promise<void> {
       body: issueBody,
     });
 
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `Issue #${issue.number}: ${issueTitle}`);
+    const messageTs = await postMessage(inputs.slackChannel, blocks, `Issue #${issue.number}: ${issueTitle}`, {
+      color: COLORS.OPEN,
+    });
 
     // Save to state
     addIssueEntry(state, issueNumber, {
@@ -244,12 +247,10 @@ async function handleIssue(inputs: ActionInputs): Promise<void> {
       author,
     });
 
-    const messageTs = await postMessage(
-      inputs.slackChannel,
-      blocks,
-      `Issue #${issue.number} closed`,
-      threadTs
-    );
+    const messageTs = await postMessage(inputs.slackChannel, blocks, `Issue #${issue.number} closed`, {
+      threadTs,
+      color: COLORS.CLOSED,
+    });
 
     // Update state
     if (existingEntry) {
@@ -321,11 +322,10 @@ async function handleWorkflowRun(inputs: ActionInputs): Promise<void> {
     duration,
   });
 
-  await postMessage(
-    inputs.slackChannel,
-    blocks,
-    `Workflow ${workflowName} ${conclusion}`
-  );
+  const color = conclusion === 'success' ? COLORS.SUCCESS : COLORS.FAILURE;
+  await postMessage(inputs.slackChannel, blocks, `Workflow ${workflowName} ${conclusion}`, {
+    color,
+  });
 
   core.setOutput('notified', 'true');
   core.info(`Workflow "${workflowName}" ${conclusion} notification sent`);

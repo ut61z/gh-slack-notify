@@ -21,19 +21,31 @@ export async function postMessage(
   channel: string,
   blocks: KnownBlock[],
   text: string,
-  threadTs?: string,
-  replyBroadcast?: boolean
+  options?: {
+    threadTs?: string;
+    replyBroadcast?: boolean;
+    color?: string;
+  }
 ): Promise<string> {
   const slack = getSlackClient();
+  const { threadTs, replyBroadcast, color } = options ?? {};
 
-  // reply_broadcastはthread_tsと一緒に指定する必要がある
-  const baseOptions = {
-    channel,
-    blocks,
-    text,
-    unfurl_links: false as const,
-    unfurl_media: false as const,
-  };
+  // colorが指定されている場合はattachmentsを使う
+  const baseOptions = color
+    ? {
+        channel,
+        attachments: [{ color, blocks }],
+        text,
+        unfurl_links: false as const,
+        unfurl_media: false as const,
+      }
+    : {
+        channel,
+        blocks,
+        text,
+        unfurl_links: false as const,
+        unfurl_media: false as const,
+      };
 
   const result = threadTs
     ? await slack.chat.postMessage({
