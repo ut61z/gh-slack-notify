@@ -41975,22 +41975,33 @@ function buildSummaryBlocks(data) {
 async function deleteTrackedMessages(state, channel) {
   const messagesToDelete = [];
   for (const [number, entry] of Object.entries(state.pull_requests)) {
-    if (entry.channel === channel && entry.message_ts) {
-      messagesToDelete.push({ type: "PR", number, ts: entry.message_ts });
+    if (entry.channel === channel) {
+      if (entry.message_ts) {
+        messagesToDelete.push({ type: "PR", number, ts: entry.message_ts });
+      }
+      if (entry.reply_message_ts) {
+        messagesToDelete.push({ type: "PR", number, ts: entry.reply_message_ts, isReply: true });
+      }
     }
   }
   for (const [number, entry] of Object.entries(state.issues)) {
-    if (entry.channel === channel && entry.message_ts) {
-      messagesToDelete.push({ type: "Issue", number, ts: entry.message_ts });
+    if (entry.channel === channel) {
+      if (entry.message_ts) {
+        messagesToDelete.push({ type: "Issue", number, ts: entry.message_ts });
+      }
+      if (entry.reply_message_ts) {
+        messagesToDelete.push({ type: "Issue", number, ts: entry.reply_message_ts, isReply: true });
+      }
     }
   }
   core3.info(`Deleting ${messagesToDelete.length} messages...`);
   for (const msg of messagesToDelete) {
     const success = await deleteMessage(channel, msg.ts);
+    const msgType = msg.isReply ? `${msg.type} reply` : msg.type;
     if (success) {
-      core3.info(`Deleted ${msg.type} #${msg.number} message`);
+      core3.info(`Deleted ${msgType} #${msg.number} message`);
     } else {
-      core3.warning(`Failed to delete ${msg.type} #${msg.number} message`);
+      core3.warning(`Failed to delete ${msgType} #${msg.number} message`);
     }
   }
 }
@@ -42098,6 +42109,7 @@ async function handlePullRequest(inputs) {
     const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number} ${prEvent}`, threadTs);
     if (existingEntry) {
       existingEntry.event = prEvent;
+      existingEntry.reply_message_ts = messageTs;
     } else {
       addPREntry(state, prNumber, {
         channel: inputs.slackChannel,
@@ -42189,6 +42201,7 @@ async function handleIssue(inputs) {
     const messageTs = await postMessage(inputs.slackChannel, blocks, `Issue #${issue.number} closed`, threadTs);
     if (existingEntry) {
       existingEntry.event = "closed";
+      existingEntry.reply_message_ts = messageTs;
     } else {
       addIssueEntry(state, issueNumber, {
         channel: inputs.slackChannel,

@@ -131,6 +131,7 @@ async function handlePullRequest(inputs: ActionInputs): Promise<void> {
     // Update state
     if (existingEntry) {
       existingEntry.event = prEvent;
+      existingEntry.reply_message_ts = messageTs;
     } else {
       addPREntry(state, prNumber, {
         channel: inputs.slackChannel,
@@ -252,6 +253,7 @@ async function handleIssue(inputs: ActionInputs): Promise<void> {
     // Update state
     if (existingEntry) {
       existingEntry.event = 'closed';
+      existingEntry.reply_message_ts = messageTs;
     } else {
       addIssueEntry(state, issueNumber, {
         channel: inputs.slackChannel,

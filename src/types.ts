@@ -5,6 +5,7 @@ export type EventType = 'pull_request' | 'issues' | 'workflow_run' | 'summary';
 export interface PullRequestEntry {
   channel: string;
   message_ts: string;
+  reply_message_ts?: string;
   created_at: string;
   event: 'opened' | 'closed' | 'merged';
   title: string;
@@ -17,6 +18,7 @@ export interface PullRequestEntry {
 export interface IssueEntry {
   channel: string;
   message_ts: string;
+  reply_message_ts?: string;
   created_at: string;
   event: 'opened' | 'closed';
   title: string;
