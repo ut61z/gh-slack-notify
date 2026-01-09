@@ -21,17 +21,39 @@ export async function postMessage(
   channel: string,
   blocks: KnownBlock[],
   text: string,
-  threadTs?: string
+  options?: {
+    threadTs?: string;
+    replyBroadcast?: boolean;
+    color?: string;
+  }
 ): Promise<string> {
   const slack = getSlackClient();
-  const result = await slack.chat.postMessage({
-    channel,
-    blocks,
-    text,
-    thread_ts: threadTs,
-    unfurl_links: false,
-    unfurl_media: false,
-  });
+  const { threadTs, replyBroadcast, color } = options ?? {};
+
+  // colorが指定されている場合はattachmentsを使う
+  const baseOptions = color
+    ? {
+        channel,
+        attachments: [{ color, blocks }],
+        text,
+        unfurl_links: false as const,
+        unfurl_media: false as const,
+      }
+    : {
+        channel,
+        blocks,
+        text,
+        unfurl_links: false as const,
+        unfurl_media: false as const,
+      };
+
+  const result = threadTs
+    ? await slack.chat.postMessage({
+        ...baseOptions,
+        thread_ts: threadTs,
+        reply_broadcast: replyBroadcast ?? false,
+      })
+    : await slack.chat.postMessage(baseOptions);
 
   if (!result.ok || !result.ts) {
     throw new Error(`Failed to post message: ${result.error}`);

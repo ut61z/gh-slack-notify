@@ -40860,16 +40860,27 @@ function getSlackClient() {
   }
   return client;
 }
-async function postMessage(channel, blocks, text, threadTs) {
+async function postMessage(channel, blocks, text, options) {
   const slack = getSlackClient();
-  const result = await slack.chat.postMessage({
+  const { threadTs, replyBroadcast, color } = options ?? {};
+  const baseOptions = color ? {
+    channel,
+    attachments: [{ color, blocks }],
+    text,
+    unfurl_links: false,
+    unfurl_media: false
+  } : {
     channel,
     blocks,
     text,
-    thread_ts: threadTs,
     unfurl_links: false,
     unfurl_media: false
-  });
+  };
+  const result = threadTs ? await slack.chat.postMessage({
+    ...baseOptions,
+    thread_ts: threadTs,
+    reply_broadcast: replyBroadcast ?? false
+  }) : await slack.chat.postMessage(baseOptions);
   if (!result.ok || !result.ts) {
     throw new Error(`Failed to post message: ${result.error}`);
   }
@@ -41773,7 +41784,7 @@ function getTargetBranch() {
   }
   return "main";
 }
-async function saveState(state) {
+async function saveState(state, skipMerge = false) {
   const branch = getTargetBranch();
   core2.info(`Target branch for state: ${branch}`);
   for (let attempt = 1;attempt <= MAX_RETRIES; attempt++) {
@@ -41790,13 +41801,18 @@ async function saveState(state) {
       } catch {
         core2.warning("Pull failed, continuing with current state");
       }
-      const currentState = await readState();
-      const mergedState = {
-        last_summary_at: state.last_summary_at ?? currentState.last_summary_at,
-        pull_requests: { ...currentState.pull_requests, ...state.pull_requests },
-        issues: { ...currentState.issues, ...state.issues }
-      };
-      await writeState(mergedState);
+      let stateToWrite;
+      if (skipMerge) {
+        stateToWrite = state;
+      } else {
+        const currentState = await readState();
+        stateToWrite = {
+          last_summary_at: state.last_summary_at ?? currentState.last_summary_at,
+          pull_requests: { ...currentState.pull_requests, ...state.pull_requests },
+          issues: { ...currentState.issues, ...state.issues }
+        };
+      }
+      await writeState(stateToWrite);
       await gitExec(`git add ${STATE_FILE_PATH}`);
       const status = await gitExec("git status --porcelain");
       if (!status.includes(STATE_FILE_PATH)) {
@@ -42016,9 +42032,18 @@ async function runSummary(channel) {
   await deleteTrackedMessages(state, channel);
   clearEntries(state);
   updateLastSummaryAt(state);
-  await saveState(state);
+  await saveState(state, true);
   core3.info("Daily summary completed");
 }
+
+// src/types.ts
+var COLORS = {
+  OPEN: "#36a64f",
+  MERGED: "#8B5CF6",
+  CLOSED: "#8B5CF6",
+  SUCCESS: "#36a64f",
+  FAILURE: "#F44336"
+};
 
 // src/index.ts
 function getInputs() {
@@ -42082,7 +42107,9 @@ async function handlePullRequest(inputs) {
       author,
       body: prBody
     });
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number}: ${prTitle}`);
+    const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number}: ${prTitle}`, {
+      color: COLORS.OPEN
+    });
     addPREntry(state, prNumber, {
       channel: inputs.slackChannel,
       message_ts: messageTs,
@@ -42106,7 +42133,12 @@ async function handlePullRequest(inputs) {
       repo: repo.repo,
       author
     });
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number} ${prEvent}`, threadTs);
+    const color = prEvent === "merged" ? COLORS.MERGED : COLORS.CLOSED;
+    const messageTs = await postMessage(inputs.slackChannel, blocks, `PR #${pr.number} ${prEvent}`, {
+      threadTs,
+      replyBroadcast: true,
+      color
+    });
     if (existingEntry) {
       existingEntry.event = prEvent;
       existingEntry.reply_message_ts = messageTs;
@@ -42174,7 +42206,9 @@ async function handleIssue(inputs) {
       author,
       body: issueBody
     });
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `Issue #${issue.number}: ${issueTitle}`);
+    const messageTs = await postMessage(inputs.slackChannel, blocks, `Issue #${issue.number}: ${issueTitle}`, {
+      color: COLORS.OPEN
+    });
     addIssueEntry(state, issueNumber, {
       channel: inputs.slackChannel,
       message_ts: messageTs,
@@ -42198,7 +42232,10 @@ async function handleIssue(inputs) {
       repo: repo.repo,
       author
     });
-    const messageTs = await postMessage(inputs.slackChannel, blocks, `Issue #${issue.number} closed`, threadTs);
+    const messageTs = await postMessage(inputs.slackChannel, blocks, `Issue #${issue.number} closed`, {
+      threadTs,
+      color: COLORS.CLOSED
+    });
     if (existingEntry) {
       existingEntry.event = "closed";
       existingEntry.reply_message_ts = messageTs;
@@ -42252,7 +42289,10 @@ async function handleWorkflowRun(inputs) {
     branch: workflowRun.head_branch,
     duration
   });
-  await postMessage(inputs.slackChannel, blocks, `Workflow ${workflowName} ${conclusion}`);
+  const color = conclusion === "success" ? COLORS.SUCCESS : COLORS.FAILURE;
+  await postMessage(inputs.slackChannel, blocks, `Workflow ${workflowName} ${conclusion}`, {
+    color
+  });
   core4.setOutput("notified", "true");
   core4.info(`Workflow "${workflowName}" ${conclusion} notification sent`);
 }

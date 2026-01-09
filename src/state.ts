@@ -79,7 +79,8 @@ function getTargetBranch(): string {
 }
 
 // Save state with git commit and push (with retry)
-export async function saveState(state: NotificationState): Promise<void> {
+// skipMerge: trueの場合、既存のstateとマージせずに上書きする（summary後のクリア用）
+export async function saveState(state: NotificationState, skipMerge = false): Promise<void> {
   const branch = getTargetBranch();
   core.info(`Target branch for state: ${branch}`);
 
@@ -106,16 +107,21 @@ export async function saveState(state: NotificationState): Promise<void> {
         core.warning('Pull failed, continuing with current state');
       }
 
-      // Read current state and merge
-      const currentState = await readState();
-      const mergedState: NotificationState = {
-        last_summary_at: state.last_summary_at ?? currentState.last_summary_at,
-        pull_requests: { ...currentState.pull_requests, ...state.pull_requests },
-        issues: { ...currentState.issues, ...state.issues },
-      };
+      // skipMergeがfalseの場合のみマージする
+      let stateToWrite: NotificationState;
+      if (skipMerge) {
+        stateToWrite = state;
+      } else {
+        const currentState = await readState();
+        stateToWrite = {
+          last_summary_at: state.last_summary_at ?? currentState.last_summary_at,
+          pull_requests: { ...currentState.pull_requests, ...state.pull_requests },
+          issues: { ...currentState.issues, ...state.issues },
+        };
+      }
 
-      // Write merged state
-      await writeState(mergedState);
+      // Write state
+      await writeState(stateToWrite);
 
       // Git add, commit, push
       await gitExec(`git add ${STATE_FILE_PATH}`);

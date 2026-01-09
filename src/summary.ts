@@ -252,8 +252,8 @@ export async function runSummary(channel: string): Promise<void> {
   clearEntries(state);
   updateLastSummaryAt(state);
 
-  // 6. Save state
-  await saveState(state);
+  // 6. Save state (skipMerge=trueでクリア後の状態を上書き)
+  await saveState(state, true);
 
   core.info('Daily summary completed');
 }

@@ -49,9 +49,9 @@ export interface ActionInputs {
 
 // Slack message colors
 export const COLORS = {
-  OPEN: '#2196F3',      // Blue
-  MERGED: '#4CAF50',    // Green
-  CLOSED: '#F44336',    // Red
-  SUCCESS: '#4CAF50',   // Green
+  OPEN: '#36a64f',      // Green
+  MERGED: '#8B5CF6',    // Purple
+  CLOSED: '#8B5CF6',    // Purple
+  SUCCESS: '#36a64f',   // Green
   FAILURE: '#F44336',   // Red
 } as const;
