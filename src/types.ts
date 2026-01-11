@@ -45,6 +45,7 @@ export interface ActionInputs {
   excludeProjectIssues: boolean;
   workflowNames: string[];
   notifyOn: string[];
+  baseBranches: string[];
 }
 
 // Slack message colors

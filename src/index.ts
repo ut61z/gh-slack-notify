@@ -1,7 +1,7 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { initSlackClient, postMessage, buildPRBlocks, buildIssueBlocks, buildWorkflowBlocks } from './slack.js';
-import { initGitHubClient, isIssueLinkedToProject, shouldNotifyByLabels } from './github.js';
+import { initGitHubClient, isIssueLinkedToProject, shouldNotifyByLabels, shouldNotifyByBaseBranch } from './github.js';
 import { readState, saveState, addPREntry, getPREntry, addIssueEntry, getIssueEntry } from './state.js';
 import { runSummary } from './summary.js';
 import { COLORS, type ActionInputs, type EventType } from './types.js';
@@ -26,6 +26,10 @@ function getInputs(): ActionInputs {
     .split(',')
     .map((n) => n.trim())
     .filter(Boolean);
+  const baseBranches = (process.env.INPUT_BASE_BRANCHES || 'all')
+    .split(',')
+    .map((b) => b.trim())
+    .filter(Boolean);
 
   return {
     eventType,
@@ -37,6 +41,7 @@ function getInputs(): ActionInputs {
     excludeProjectIssues,
     workflowNames,
     notifyOn,
+    baseBranches,
   };
 }
 
@@ -68,6 +73,14 @@ async function handlePullRequest(inputs: ActionInputs): Promise<void> {
   const labels = (pr.labels || []).map((l: { name: string }) => l.name);
   if (!shouldNotifyByLabels(labels, inputs.labelFilterMode, inputs.filterLabels)) {
     core.info('PR filtered out by label filter');
+    core.setOutput('notified', 'false');
+    return;
+  }
+
+  // Check base branch filter
+  const baseBranch = pr.base?.ref || '';
+  if (!shouldNotifyByBaseBranch(baseBranch, inputs.baseBranches)) {
+    core.info(`PR filtered out by base branch filter (base: ${baseBranch})`);
     core.setOutput('notified', 'false');
     return;
   }

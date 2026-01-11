@@ -39,6 +39,10 @@ inputs:
     description: 'When to notify for workflow_run: success,failure or failure'
     required: false
     default: 'success,failure'
+  base_branches:
+    description: 'Target base branches to notify (e.g., "main", "main,develop", or "all" for all branches)'
+    required: false
+    default: 'all'
 
 outputs:
   message_ts:
@@ -66,4 +70,5 @@ runs:
         INPUT_EXCLUDE_PROJECT_ISSUES: ${{ inputs.exclude_project_issues }}
         INPUT_WORKFLOW_NAMES: ${{ inputs.workflow_names }}
         INPUT_NOTIFY_ON: ${{ inputs.notify_on }}
+        INPUT_BASE_BRANCHES: ${{ inputs.base_branches }}
       run: node ${{ github.action_path }}/dist/index.js
