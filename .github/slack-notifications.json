@@ -15,11 +15,12 @@
       "channel": "C09KRV8HXAS",
       "message_ts": "1768298419.203229",
       "created_at": "2026-01-13T10:00:19.257Z",
-      "event": "opened",
+      "event": "closed",
       "title": "test: close",
       "url": "https://github.com/ut61z/gh-slack-notify/pull/12",
       "repo": "gh-slack-notify",
-      "author": "ut61z"
+      "author": "ut61z",
+      "reply_message_ts": "1768298544.769119"
     }
   },
   "issues": {
