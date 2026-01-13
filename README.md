@@ -33,6 +33,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
+        env:
+          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: pull_request
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -45,6 +47,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
+        env:
+          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: issues
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -66,6 +70,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
+        env:
+          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: workflow_run
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -89,6 +95,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
+        env:
+          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: summary
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -110,6 +118,13 @@ jobs:
 | `workflow_names` | No | - | Comma-separated workflow names to notify |
 | `notify_on` | No | `success,failure` | `success`, `failure`, or both |
 
+## Environment Variables
+
+| Name | Required | Description |
+|------|----------|-------------|
+| `SLACK_NOTIFY_ENCRYPTION_KEY` | Yes | Base64-encoded 32-byte key for encrypting state file |
+| `DEBUG_MODE` | No | Set to `true` to disable encryption (for local development) |
+
 ## Outputs
 
 | Name | Description |
@@ -127,7 +142,60 @@ Your Slack App needs these OAuth Scopes:
 
 ## State Management
 
-PR/Issue notifications are stored in `.github/slack-notifications.json` to enable thread replies on Close/Merge events.
+PR/Issue notifications are stored in `.github/slack-notifications.json` to enable thread replies on Close/Merge events. All entries are encrypted with AES-256-GCM.
+
+### Encryption Setup (Required)
+
+#### 1. Generate an encryption key
+
+```bash
+openssl rand -base64 32
+```
+
+#### 2. Add to GitHub Secrets
+
+Go to **Settings > Secrets and variables > Actions > New repository secret**
+
+- Name: `SLACK_NOTIFY_ENCRYPTION_KEY`
+- Value: The generated base64 string
+
+#### 3. Pass to workflow
+
+```yaml
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ut61z/gh-slack-notify@v1
+        env:
+          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
+        with:
+          event_type: pull_request
+          slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack_channel: 'C01234567'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+Encrypted state file example:
+
+```json
+{
+  "pull_requests": {
+    "11": "enc:iv==:encryptedData==:authTag=="
+  }
+}
+```
+
+### Debug Mode (Local Development)
+
+For local development, set `DEBUG_MODE=true` to disable encryption:
+
+```bash
+DEBUG_MODE=true bun run dev
+```
+
+In debug mode, data is stored in plain JSON without encryption.
 
 ## License
 
