@@ -95,15 +95,15 @@ export function buildPRBlocks(params: {
 
   switch (action) {
     case 'opened':
-      emoji = '🚀';
+      emoji = ':trident:';
       statusText = 'opened';
       break;
     case 'merged':
-      emoji = '✅';
+      emoji = ':feet:';
       statusText = 'merged';
       break;
     case 'closed':
-      emoji = '❌';
+      emoji = ':ballot_box_with_check:';
       statusText = 'closed';
       break;
   }
@@ -173,7 +173,7 @@ export function buildIssueBlocks(params: {
 }): KnownBlock[] {
   const { action, title, url, number, repo, author, body } = params;
 
-  const emoji = action === 'opened' ? '🐛' : '✅';
+  const emoji = action === 'opened' ? ':raised_hand:' : ':feet:';
   const statusText = action === 'opened' ? 'opened' : 'closed';
 
   const blocks: KnownBlock[] = [
