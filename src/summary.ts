@@ -77,7 +77,7 @@ function buildSummaryBlocks(data: SummaryData): KnownBlock[] {
       type: 'header',
       text: {
         type: 'plain_text',
-        text: `📊 Daily Summary - ${today}`,
+        text: `:scroll: Daily Summary - ${today}`,
         emoji: true,
       },
     },
@@ -101,7 +101,7 @@ function buildSummaryBlocks(data: SummaryData): KnownBlock[] {
     const prLines: string[] = [];
 
     if (data.prs.merged.length > 0) {
-      prLines.push('✅ *Merged*');
+      prLines.push(':feet: *Merged*');
       for (const { number, entry } of data.prs.merged) {
         prLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
       }
@@ -109,7 +109,7 @@ function buildSummaryBlocks(data: SummaryData): KnownBlock[] {
     }
 
     if (data.prs.opened.length > 0) {
-      prLines.push('🚀 *Opened*');
+      prLines.push(':trident: *Opened*');
       for (const { number, entry } of data.prs.opened) {
         prLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
       }
@@ -117,7 +117,7 @@ function buildSummaryBlocks(data: SummaryData): KnownBlock[] {
     }
 
     if (data.prs.closed.length > 0) {
-      prLines.push('❌ *Closed*');
+      prLines.push(':ballot_box_with_check: *Closed*');
       for (const { number, entry } of data.prs.closed) {
         prLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
       }
@@ -147,7 +147,7 @@ function buildSummaryBlocks(data: SummaryData): KnownBlock[] {
     const issueLines: string[] = [];
 
     if (data.issues.opened.length > 0) {
-      issueLines.push('🐛 *Opened*');
+      issueLines.push(':raised_hand: *Opened*');
       for (const { number, entry } of data.issues.opened) {
         issueLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
       }
@@ -155,7 +155,7 @@ function buildSummaryBlocks(data: SummaryData): KnownBlock[] {
     }
 
     if (data.issues.closed.length > 0) {
-      issueLines.push('✅ *Closed*');
+      issueLines.push(':feet: *Closed*');
       for (const { number, entry } of data.issues.closed) {
         issueLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
       }
