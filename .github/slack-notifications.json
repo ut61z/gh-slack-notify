@@ -1,26 +1,5 @@
 {
-  "last_summary_at": "2026-01-12T14:10:42.530Z",
-  "pull_requests": {
-    "10": {
-      "channel": "C09KRV8HXAS",
-      "message_ts": "1768285507.362609",
-      "created_at": "2026-01-13T06:25:07.404Z",
-      "event": "merged",
-      "title": "feat: baseブランチフィルタリング機能を追加",
-      "url": "https://github.com/ut61z/gh-slack-notify/pull/10",
-      "repo": "gh-slack-notify",
-      "author": "ut61z"
-    },
-    "11": {
-      "channel": "C09KRV8HXAS",
-      "message_ts": "1768285521.187699",
-      "created_at": "2026-01-13T06:25:21.222Z",
-      "event": "opened",
-      "title": "fix: emoji",
-      "url": "https://github.com/ut61z/gh-slack-notify/pull/11",
-      "repo": "gh-slack-notify",
-      "author": "ut61z"
-    }
-  },
+  "last_summary_at": "2026-01-13T06:26:21.580Z",
+  "pull_requests": {},
   "issues": {}
 }
