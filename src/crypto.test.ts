@@ -41,14 +41,14 @@ describe('crypto', () => {
   });
 
   describe('getEncryptionKey', () => {
-    const originalEncryptionKey = process.env.ENCRYPTION_KEY;
+    const originalEncryptionKey = process.env.SLACK_NOTIFY_ENCRYPTION_KEY;
     const originalDebugMode = process.env.DEBUG_MODE;
 
     afterEach(() => {
       if (originalEncryptionKey !== undefined) {
-        process.env.ENCRYPTION_KEY = originalEncryptionKey;
+        process.env.SLACK_NOTIFY_ENCRYPTION_KEY = originalEncryptionKey;
       } else {
-        delete process.env.ENCRYPTION_KEY;
+        delete process.env.SLACK_NOTIFY_ENCRYPTION_KEY;
       }
       if (originalDebugMode !== undefined) {
         process.env.DEBUG_MODE = originalDebugMode;
@@ -58,27 +58,27 @@ describe('crypto', () => {
     });
 
     test('ENCRYPTION_KEYが設定されていない場合はエラーを投げる', () => {
-      delete process.env.ENCRYPTION_KEY;
+      delete process.env.SLACK_NOTIFY_ENCRYPTION_KEY;
       delete process.env.DEBUG_MODE;
       expect(() => getEncryptionKey()).toThrow('ENCRYPTION_KEY is required');
     });
 
     test('デバッグモードではENCRYPTION_KEYがなくてもエラーにならない', () => {
-      delete process.env.ENCRYPTION_KEY;
+      delete process.env.SLACK_NOTIFY_ENCRYPTION_KEY;
       process.env.DEBUG_MODE = 'true';
       const key = getEncryptionKey();
       expect(key.length).toBe(32);
     });
 
     test('32バイトのキーを返す', () => {
-      process.env.ENCRYPTION_KEY = TEST_KEY_BASE64;
+      process.env.SLACK_NOTIFY_ENCRYPTION_KEY = TEST_KEY_BASE64;
       delete process.env.DEBUG_MODE;
       const key = getEncryptionKey();
       expect(key.length).toBe(32);
     });
 
     test('不正なキー長でエラーを投げる', () => {
-      process.env.ENCRYPTION_KEY = Buffer.from('short').toString('base64');
+      process.env.SLACK_NOTIFY_ENCRYPTION_KEY = Buffer.from('short').toString('base64');
       delete process.env.DEBUG_MODE;
       expect(() => getEncryptionKey()).toThrow('must be 32 bytes');
     });

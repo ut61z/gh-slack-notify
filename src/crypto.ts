@@ -17,9 +17,9 @@ export function getEncryptionKey(): Buffer {
     return Buffer.alloc(32);
   }
 
-  const keyBase64 = process.env.ENCRYPTION_KEY;
+  const keyBase64 = process.env.SLACK_NOTIFY_ENCRYPTION_KEY;
   if (!keyBase64) {
-    throw new Error('ENCRYPTION_KEY is required. Set DEBUG_MODE=true to disable encryption for local development.');
+    throw new Error('SLACK_NOTIFY_ENCRYPTION_KEY is required. Set DEBUG_MODE=true to disable encryption for local development.');
   }
   const key = Buffer.from(keyBase64, 'base64');
   if (key.length !== 32) {

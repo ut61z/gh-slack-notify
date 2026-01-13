@@ -114,7 +114,7 @@ jobs:
 
 | Name | Required | Description |
 |------|----------|-------------|
-| `ENCRYPTION_KEY` | Yes | Base64-encoded 32-byte key for encrypting state file |
+| `SLACK_NOTIFY_ENCRYPTION_KEY` | Yes | Base64-encoded 32-byte key for encrypting state file |
 | `DEBUG_MODE` | No | Set to `true` to disable encryption (for local development) |
 
 ## Outputs
@@ -148,7 +148,7 @@ openssl rand -base64 32
 
 Go to **Settings > Secrets and variables > Actions > New repository secret**
 
-- Name: `ENCRYPTION_KEY`
+- Name: `SLACK_NOTIFY_ENCRYPTION_KEY`
 - Value: The generated base64 string
 
 #### 3. Pass to workflow
@@ -161,7 +161,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
         env:
-          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: pull_request
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
