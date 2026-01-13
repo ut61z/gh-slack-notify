@@ -5,11 +5,12 @@
       "channel": "C09KRV8HXAS",
       "message_ts": "1768346766.092029",
       "created_at": "2026-01-13T23:26:06.123Z",
-      "event": "opened",
+      "event": "merged",
       "title": "feat: ステートファイルのAES-256-GCM暗号化機能を追加",
       "url": "https://github.com/ut61z/gh-slack-notify/pull/22",
       "repo": "gh-slack-notify",
-      "author": "ut61z"
+      "author": "ut61z",
+      "reply_message_ts": "1768347452.133149"
     }
   },
   "issues": {}
