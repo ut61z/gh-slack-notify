@@ -22,5 +22,16 @@
       "author": "ut61z"
     }
   },
-  "issues": {}
+  "issues": {
+    "13": {
+      "channel": "C09KRV8HXAS",
+      "message_ts": "1768298438.998139",
+      "created_at": "2026-01-13T10:00:39.029Z",
+      "event": "opened",
+      "title": "test: slack notify",
+      "url": "https://github.com/ut61z/gh-slack-notify/issues/13",
+      "repo": "gh-slack-notify",
+      "author": "ut61z"
+    }
+  }
 }
