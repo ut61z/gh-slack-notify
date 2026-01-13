@@ -1,5 +1,16 @@
 {
   "last_summary_at": "2026-01-12T14:10:42.530Z",
-  "pull_requests": {},
+  "pull_requests": {
+    "10": {
+      "channel": "C09KRV8HXAS",
+      "message_ts": "1768285507.362609",
+      "created_at": "2026-01-13T06:25:07.404Z",
+      "event": "merged",
+      "title": "feat: baseブランチフィルタリング機能を追加",
+      "url": "https://github.com/ut61z/gh-slack-notify/pull/10",
+      "repo": "gh-slack-notify",
+      "author": "ut61z"
+    }
+  },
   "issues": {}
 }
