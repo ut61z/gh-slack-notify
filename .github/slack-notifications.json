@@ -21,6 +21,16 @@
       "repo": "gh-slack-notify",
       "author": "ut61z",
       "reply_message_ts": "1768298544.769119"
+    },
+    "14": {
+      "channel": "C09KRV8HXAS",
+      "message_ts": "1768305778.211939",
+      "created_at": "2026-01-13T12:02:58.244Z",
+      "event": "opened",
+      "title": "style: emojiを変更",
+      "url": "https://github.com/ut61z/gh-slack-notify/pull/14",
+      "repo": "gh-slack-notify",
+      "author": "ut61z"
     }
   },
   "issues": {
