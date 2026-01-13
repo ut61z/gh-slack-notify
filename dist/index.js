@@ -40905,15 +40905,15 @@ function buildPRBlocks(params) {
   let statusText;
   switch (action) {
     case "opened":
-      emoji = "\uD83D\uDE80";
+      emoji = ":trident:";
       statusText = "opened";
       break;
     case "merged":
-      emoji = "✅";
+      emoji = ":feet:";
       statusText = "merged";
       break;
     case "closed":
-      emoji = "❌";
+      emoji = ":ballot_box_with_check:";
       statusText = "closed";
       break;
   }
@@ -40967,7 +40967,7 @@ function buildPRBlocks(params) {
 }
 function buildIssueBlocks(params) {
   const { action, title, url, number, repo, author, body } = params;
-  const emoji = action === "opened" ? "\uD83D\uDC1B" : "✅";
+  const emoji = action === "opened" ? ":raised_hand:" : ":feet:";
   const statusText = action === "opened" ? "opened" : "closed";
   const blocks = [
     {
@@ -41918,7 +41918,7 @@ function buildSummaryBlocks(data) {
       type: "header",
       text: {
         type: "plain_text",
-        text: `\uD83D\uDCCA Daily Summary - ${today}`,
+        text: `:scroll: Daily Summary - ${today}`,
         emoji: true
       }
     }
@@ -41934,21 +41934,21 @@ function buildSummaryBlocks(data) {
     });
     const prLines = [];
     if (data.prs.merged.length > 0) {
-      prLines.push("✅ *Merged*");
+      prLines.push(":feet: *Merged*");
       for (const { number, entry } of data.prs.merged) {
         prLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
       }
       prLines.push("");
     }
     if (data.prs.opened.length > 0) {
-      prLines.push("\uD83D\uDE80 *Opened*");
+      prLines.push(":trident: *Opened*");
       for (const { number, entry } of data.prs.opened) {
         prLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
       }
       prLines.push("");
     }
     if (data.prs.closed.length > 0) {
-      prLines.push("❌ *Closed*");
+      prLines.push(":ballot_box_with_check: *Closed*");
       for (const { number, entry } of data.prs.closed) {
         prLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
       }
@@ -41973,14 +41973,14 @@ function buildSummaryBlocks(data) {
     });
     const issueLines = [];
     if (data.issues.opened.length > 0) {
-      issueLines.push("\uD83D\uDC1B *Opened*");
+      issueLines.push(":raised_hand: *Opened*");
       for (const { number, entry } of data.issues.opened) {
         issueLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
       }
       issueLines.push("");
     }
     if (data.issues.closed.length > 0) {
-      issueLines.push("✅ *Closed*");
+      issueLines.push(":feet: *Closed*");
       for (const { number, entry } of data.issues.closed) {
         issueLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
       }

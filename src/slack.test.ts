@@ -17,7 +17,7 @@ describe('buildPRBlocks', () => {
 
       expect(blocks).toHaveLength(3);
       expect(blocks[0]!.type).toBe('section');
-      expect((blocks[0] as SectionBlock).text?.text).toContain('🚀');
+      expect((blocks[0] as SectionBlock).text?.text).toContain(':trident:');
       expect((blocks[0] as SectionBlock).text?.text).toContain('opened');
     });
 
@@ -68,7 +68,7 @@ describe('buildPRBlocks', () => {
       const blocks = buildPRBlocks({ ...baseParams, action: 'merged' });
 
       expect(blocks).toHaveLength(3);
-      expect((blocks[0] as SectionBlock).text?.text).toContain('✅');
+      expect((blocks[0] as SectionBlock).text?.text).toContain(':feet:');
       expect((blocks[0] as SectionBlock).text?.text).toContain('merged');
     });
 
@@ -88,7 +88,7 @@ describe('buildPRBlocks', () => {
       const blocks = buildPRBlocks({ ...baseParams, action: 'closed' });
 
       expect(blocks).toHaveLength(3);
-      expect((blocks[0] as SectionBlock).text?.text).toContain('❌');
+      expect((blocks[0] as SectionBlock).text?.text).toContain(':ballot_box_with_check:');
       expect((blocks[0] as SectionBlock).text?.text).toContain('closed');
     });
   });
@@ -108,7 +108,7 @@ describe('buildIssueBlocks', () => {
       const blocks = buildIssueBlocks({ ...baseParams, action: 'opened' });
 
       expect(blocks).toHaveLength(3);
-      expect((blocks[0] as SectionBlock).text?.text).toContain('🐛');
+      expect((blocks[0] as SectionBlock).text?.text).toContain(':raised_hand:');
       expect((blocks[0] as SectionBlock).text?.text).toContain('opened');
     });
 
@@ -137,7 +137,7 @@ describe('buildIssueBlocks', () => {
       const blocks = buildIssueBlocks({ ...baseParams, action: 'closed' });
 
       expect(blocks).toHaveLength(3);
-      expect((blocks[0] as SectionBlock).text?.text).toContain('✅');
+      expect((blocks[0] as SectionBlock).text?.text).toContain(':feet:');
       expect((blocks[0] as SectionBlock).text?.text).toContain('closed');
     });
 
