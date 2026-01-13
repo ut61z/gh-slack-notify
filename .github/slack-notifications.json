@@ -31,6 +31,16 @@
       "url": "https://github.com/ut61z/gh-slack-notify/pull/14",
       "repo": "gh-slack-notify",
       "author": "ut61z"
+    },
+    "15": {
+      "channel": "C09KRV8HXAS",
+      "message_ts": "1768306594.884479",
+      "created_at": "2026-01-13T12:16:34.931Z",
+      "event": "opened",
+      "title": "Create dependabot.yml",
+      "url": "https://github.com/ut61z/gh-slack-notify/pull/15",
+      "repo": "gh-slack-notify",
+      "author": "ut61z"
     }
   },
   "issues": {
