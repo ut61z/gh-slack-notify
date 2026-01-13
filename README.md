@@ -33,6 +33,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
+        env:
+          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: pull_request
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -45,6 +47,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
+        env:
+          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: issues
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -66,6 +70,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
+        env:
+          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: workflow_run
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -89,6 +95,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
+        env:
+          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: summary
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
