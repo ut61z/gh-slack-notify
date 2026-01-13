@@ -41738,6 +41738,12 @@ function shouldNotifyByLabels(labels, filterMode, filterLabels) {
     return !hasMatchingLabel;
   }
 }
+function shouldNotifyByBaseBranch(baseBranch, baseBranches) {
+  if (baseBranches.length === 0 || baseBranches.includes("all")) {
+    return true;
+  }
+  return baseBranches.some((branch) => branch.toLowerCase() === baseBranch.toLowerCase());
+}
 
 // src/state.ts
 var core2 = __toESM(require_core(), 1);
@@ -42067,6 +42073,7 @@ function getInputs() {
   const excludeProjectIssues = process.env.INPUT_EXCLUDE_PROJECT_ISSUES !== "false";
   const workflowNames = (process.env.INPUT_WORKFLOW_NAMES || "").split(",").map((w) => w.trim()).filter(Boolean);
   const notifyOn = (process.env.INPUT_NOTIFY_ON || "success,failure").split(",").map((n) => n.trim()).filter(Boolean);
+  const baseBranches = (process.env.INPUT_BASE_BRANCHES || "all").split(",").map((b) => b.trim()).filter(Boolean);
   return {
     eventType,
     slackToken,
@@ -42076,7 +42083,8 @@ function getInputs() {
     filterLabels,
     excludeProjectIssues,
     workflowNames,
-    notifyOn
+    notifyOn,
+    baseBranches
   };
 }
 async function handlePullRequest(inputs) {
@@ -42100,6 +42108,12 @@ async function handlePullRequest(inputs) {
   const labels = (pr.labels || []).map((l) => l.name);
   if (!shouldNotifyByLabels(labels, inputs.labelFilterMode, inputs.filterLabels)) {
     core4.info("PR filtered out by label filter");
+    core4.setOutput("notified", "false");
+    return;
+  }
+  const baseBranch = pr.base?.ref || "";
+  if (!shouldNotifyByBaseBranch(baseBranch, inputs.baseBranches)) {
+    core4.info(`PR filtered out by base branch filter (base: ${baseBranch})`);
     core4.setOutput("notified", "false");
     return;
   }

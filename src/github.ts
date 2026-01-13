@@ -88,3 +88,19 @@ export function shouldNotifyByLabels(
     return !hasMatchingLabel;
   }
 }
+
+// Check if base branch matches the filter
+export function shouldNotifyByBaseBranch(
+  baseBranch: string,
+  baseBranches: string[]
+): boolean {
+  if (baseBranches.length === 0 || baseBranches.includes('all')) {
+    // No filter configured or 'all' specified, always notify
+    return true;
+  }
+
+  // Check if base branch matches any of the configured branches
+  return baseBranches.some(
+    (branch) => branch.toLowerCase() === baseBranch.toLowerCase()
+  );
+}
