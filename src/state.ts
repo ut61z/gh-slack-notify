@@ -4,6 +4,7 @@ import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { NotificationState, PullRequestEntry, IssueEntry } from './types.js';
+import { getEncryptionKey, encryptEntry, decryptEntry, isEncrypted, isEncryptionEnabled } from './crypto.js';
 
 const execAsync = promisify(exec);
 
@@ -19,11 +20,49 @@ function getEmptyState(): NotificationState {
   };
 }
 
+// ファイルに保存される形式（暗号化時）
+interface StoredNotificationState {
+  last_summary_at?: string;
+  pull_requests: Record<string, string | PullRequestEntry>;
+  issues: Record<string, string | IssueEntry>;
+}
+
 // Read state file
 export async function readState(): Promise<NotificationState> {
   try {
     const content = await fs.readFile(STATE_FILE_PATH, 'utf-8');
-    return JSON.parse(content) as NotificationState;
+    const stored = JSON.parse(content) as StoredNotificationState;
+
+    if (!isEncryptionEnabled()) {
+      // デバッグモード: 平文で読み込み
+      return {
+        last_summary_at: stored.last_summary_at,
+        pull_requests: stored.pull_requests as Record<string, PullRequestEntry>,
+        issues: stored.issues as Record<string, IssueEntry>,
+      };
+    }
+
+    // 暗号化モード: 各エントリを復号
+    const key = getEncryptionKey();
+    const pullRequests: Record<string, PullRequestEntry> = {};
+    for (const [prNumber, entry] of Object.entries(stored.pull_requests)) {
+      if (typeof entry === 'string' && isEncrypted(entry)) {
+        pullRequests[prNumber] = decryptEntry<PullRequestEntry>(entry, key);
+      }
+    }
+
+    const issues: Record<string, IssueEntry> = {};
+    for (const [issueNumber, entry] of Object.entries(stored.issues)) {
+      if (typeof entry === 'string' && isEncrypted(entry)) {
+        issues[issueNumber] = decryptEntry<IssueEntry>(entry, key);
+      }
+    }
+
+    return {
+      last_summary_at: stored.last_summary_at,
+      pull_requests: pullRequests,
+      issues: issues,
+    };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       core.info('State file not found, creating new state');
@@ -37,7 +76,30 @@ export async function readState(): Promise<NotificationState> {
 async function writeState(state: NotificationState): Promise<void> {
   const dir = path.dirname(STATE_FILE_PATH);
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(STATE_FILE_PATH, JSON.stringify(state, null, 2));
+
+  if (!isEncryptionEnabled()) {
+    // デバッグモード: 平文で保存
+    await fs.writeFile(STATE_FILE_PATH, JSON.stringify(state, null, 2));
+    return;
+  }
+
+  // 暗号化して保存
+  const key = getEncryptionKey();
+  const stored: StoredNotificationState = {
+    last_summary_at: state.last_summary_at,
+    pull_requests: {},
+    issues: {},
+  };
+
+  for (const [prNumber, entry] of Object.entries(state.pull_requests)) {
+    stored.pull_requests[prNumber] = encryptEntry(entry, key);
+  }
+
+  for (const [issueNumber, entry] of Object.entries(state.issues)) {
+    stored.issues[issueNumber] = encryptEntry(entry, key);
+  }
+
+  await fs.writeFile(STATE_FILE_PATH, JSON.stringify(stored, null, 2));
 }
 
 // Execute git command
