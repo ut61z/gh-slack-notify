@@ -2,7 +2,7 @@ import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { initSlackClient, postMessage, buildPRBlocks, buildIssueBlocks, buildWorkflowBlocks } from './slack.js';
 import { initGitHubClient, isIssueLinkedToProject, shouldNotifyByLabels, shouldNotifyByBaseBranch } from './github.js';
-import { readState, saveState, addPREntry, getPREntry, addIssueEntry, getIssueEntry } from './state.js';
+import { initArtifactClient, readState, saveState, addPREntry, getPREntry, addIssueEntry, getIssueEntry } from './state.js';
 import { runSummary } from './summary.js';
 import { COLORS, type ActionInputs, type EventType } from './types.js';
 
@@ -369,11 +369,7 @@ async function main(): Promise<void> {
     // Initialize clients
     initSlackClient(inputs.slackToken);
     initGitHubClient(inputs.githubToken);
-
-    // Configure git for state management
-    const { execSync } = await import('child_process');
-    execSync('git config user.name "github-actions[bot]"');
-    execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
+    initArtifactClient(inputs.githubToken);
 
     // Handle event
     switch (inputs.eventType) {
