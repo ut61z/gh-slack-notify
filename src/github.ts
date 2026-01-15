@@ -3,6 +3,11 @@ import * as core from '@actions/core';
 
 let graphqlClient: typeof graphql | null = null;
 
+// Sleep utility
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function initGitHubClient(token: string): void {
   graphqlClient = graphql.defaults({
     headers: {
@@ -25,6 +30,11 @@ export async function isIssueLinkedToProject(
   issueNumber: number
 ): Promise<boolean> {
   const client = getGraphQLClient();
+
+  // Wait for Project linkage to be reflected (GitHub may have delay)
+  const DELAY_MS = 3000;
+  core.info(`Waiting ${DELAY_MS}ms for Project linkage to be reflected...`);
+  await sleep(DELAY_MS);
 
   try {
     const response = await client<{
