@@ -120087,15 +120087,15 @@ var IV_LENGTH = 12;
 var AUTH_TAG_LENGTH = 16;
 var ENCRYPTED_PREFIX = "enc:";
 function isDebugMode() {
-  return process.env.DEBUG_MODE === "true";
+  return process.env.INPUT_DEBUG_MODE === "true";
 }
 function getEncryptionKey() {
   if (isDebugMode()) {
     return Buffer.alloc(32);
   }
-  const keyBase64 = process.env.SLACK_NOTIFY_ENCRYPTION_KEY;
+  const keyBase64 = process.env.INPUT_ENCRYPTION_KEY;
   if (!keyBase64) {
-    throw new Error("SLACK_NOTIFY_ENCRYPTION_KEY is required. Set DEBUG_MODE=true to disable encryption for local development.");
+    throw new Error("encryption_key input is required. Set debug_mode=true to disable encryption for local development.");
   }
   const key = Buffer.from(keyBase64, "base64");
   if (key.length !== 32) {

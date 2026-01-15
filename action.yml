@@ -61,6 +61,3 @@ outputs:
 runs:
   using: 'node20'
   main: 'dist/index.js'
-  env:
-    SLACK_NOTIFY_ENCRYPTION_KEY: ${{ inputs.encryption_key }}
-    DEBUG_MODE: ${{ inputs.debug_mode }}
