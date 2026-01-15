@@ -31,6 +31,7 @@ jobs:
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
 
   notify-issue:
     if: github.event_name == 'issues'
@@ -44,6 +45,7 @@ jobs:
           slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           exclude_project_issues: 'true'
+          encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
 
   test-summary:
     if: github.event_name == 'workflow_dispatch'
@@ -56,3 +58,4 @@ jobs:
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
