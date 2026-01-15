@@ -43,6 +43,14 @@ inputs:
     description: 'Target base branches to notify (e.g., "main", "main,develop", or "all" for all branches)'
     required: false
     default: 'all'
+  encryption_key:
+    description: 'Encryption key for state data (base64-encoded 32 bytes). Required unless debug_mode is true.'
+    required: false
+    default: ''
+  debug_mode:
+    description: 'Enable debug mode (disables encryption). For local development only.'
+    required: false
+    default: 'false'
 
 outputs:
   message_ts:
@@ -71,4 +79,6 @@ runs:
         INPUT_WORKFLOW_NAMES: ${{ inputs.workflow_names }}
         INPUT_NOTIFY_ON: ${{ inputs.notify_on }}
         INPUT_BASE_BRANCHES: ${{ inputs.base_branches }}
+        SLACK_NOTIFY_ENCRYPTION_KEY: ${{ inputs.encryption_key }}
+        DEBUG_MODE: ${{ inputs.debug_mode }}
       run: node ${{ github.action_path }}/dist/index.js
