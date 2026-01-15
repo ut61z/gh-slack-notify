@@ -81,4 +81,6 @@ runs:
         INPUT_BASE_BRANCHES: ${{ inputs.base_branches }}
         SLACK_NOTIFY_ENCRYPTION_KEY: ${{ inputs.encryption_key }}
         DEBUG_MODE: ${{ inputs.debug_mode }}
+        ACTIONS_RUNTIME_TOKEN: ${{ env.ACTIONS_RUNTIME_TOKEN }}
+        ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
       run: node ${{ github.action_path }}/dist/index.js
