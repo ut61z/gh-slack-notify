@@ -59,26 +59,8 @@ outputs:
     description: 'Whether a notification was sent (true/false)'
 
 runs:
-  using: 'composite'
-  steps:
-    - name: Setup Node.js
-      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-      with:
-        node-version: '20'
-
-    - name: Run notification
-      shell: bash
-      env:
-        INPUT_EVENT_TYPE: ${{ inputs.event_type }}
-        INPUT_SLACK_TOKEN: ${{ inputs.slack_token }}
-        INPUT_SLACK_CHANNEL: ${{ inputs.slack_channel }}
-        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
-        INPUT_LABEL_FILTER_MODE: ${{ inputs.label_filter_mode }}
-        INPUT_FILTER_LABELS: ${{ inputs.filter_labels }}
-        INPUT_EXCLUDE_PROJECT_ISSUES: ${{ inputs.exclude_project_issues }}
-        INPUT_WORKFLOW_NAMES: ${{ inputs.workflow_names }}
-        INPUT_NOTIFY_ON: ${{ inputs.notify_on }}
-        INPUT_BASE_BRANCHES: ${{ inputs.base_branches }}
-        SLACK_NOTIFY_ENCRYPTION_KEY: ${{ inputs.encryption_key }}
-        DEBUG_MODE: ${{ inputs.debug_mode }}
-      run: node ${{ github.action_path }}/dist/index.js
+  using: 'node20'
+  main: 'dist/index.js'
+  env:
+    SLACK_NOTIFY_ENCRYPTION_KEY: ${{ inputs.encryption_key }}
+    DEBUG_MODE: ${{ inputs.debug_mode }}
