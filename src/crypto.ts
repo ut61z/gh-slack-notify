@@ -7,7 +7,7 @@ const ENCRYPTED_PREFIX = 'enc:';
 
 // デバッグモードかどうか
 export function isDebugMode(): boolean {
-  return process.env.DEBUG_MODE === 'true';
+  return process.env.INPUT_DEBUG_MODE === 'true';
 }
 
 // 環境変数から暗号化キーを取得（デバッグモードでなければ必須）
@@ -17,9 +17,9 @@ export function getEncryptionKey(): Buffer {
     return Buffer.alloc(32);
   }
 
-  const keyBase64 = process.env.SLACK_NOTIFY_ENCRYPTION_KEY;
+  const keyBase64 = process.env.INPUT_ENCRYPTION_KEY;
   if (!keyBase64) {
-    throw new Error('SLACK_NOTIFY_ENCRYPTION_KEY is required. Set DEBUG_MODE=true to disable encryption for local development.');
+    throw new Error('encryption_key input is required. Set debug_mode=true to disable encryption for local development.');
   }
   const key = Buffer.from(keyBase64, 'base64');
   if (key.length !== 32) {

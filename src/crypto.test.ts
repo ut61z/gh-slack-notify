@@ -14,94 +14,94 @@ describe('crypto', () => {
   const TEST_KEY = Buffer.from(TEST_KEY_BASE64, 'base64');
 
   describe('isDebugMode', () => {
-    const originalDebugMode = process.env.DEBUG_MODE;
+    const originalDebugMode = process.env.INPUT_DEBUG_MODE;
 
     afterEach(() => {
       if (originalDebugMode !== undefined) {
-        process.env.DEBUG_MODE = originalDebugMode;
+        process.env.INPUT_DEBUG_MODE = originalDebugMode;
       } else {
-        delete process.env.DEBUG_MODE;
+        delete process.env.INPUT_DEBUG_MODE;
       }
     });
 
-    test('DEBUG_MODE=trueの場合はtrueを返す', () => {
-      process.env.DEBUG_MODE = 'true';
+    test('INPUT_DEBUG_MODE=trueの場合はtrueを返す', () => {
+      process.env.INPUT_DEBUG_MODE = 'true';
       expect(isDebugMode()).toBe(true);
     });
 
-    test('DEBUG_MODEが未設定の場合はfalseを返す', () => {
-      delete process.env.DEBUG_MODE;
+    test('INPUT_DEBUG_MODEが未設定の場合はfalseを返す', () => {
+      delete process.env.INPUT_DEBUG_MODE;
       expect(isDebugMode()).toBe(false);
     });
 
-    test('DEBUG_MODE=falseの場合はfalseを返す', () => {
-      process.env.DEBUG_MODE = 'false';
+    test('INPUT_DEBUG_MODE=falseの場合はfalseを返す', () => {
+      process.env.INPUT_DEBUG_MODE = 'false';
       expect(isDebugMode()).toBe(false);
     });
   });
 
   describe('getEncryptionKey', () => {
-    const originalEncryptionKey = process.env.SLACK_NOTIFY_ENCRYPTION_KEY;
-    const originalDebugMode = process.env.DEBUG_MODE;
+    const originalEncryptionKey = process.env.INPUT_ENCRYPTION_KEY;
+    const originalDebugMode = process.env.INPUT_DEBUG_MODE;
 
     afterEach(() => {
       if (originalEncryptionKey !== undefined) {
-        process.env.SLACK_NOTIFY_ENCRYPTION_KEY = originalEncryptionKey;
+        process.env.INPUT_ENCRYPTION_KEY = originalEncryptionKey;
       } else {
-        delete process.env.SLACK_NOTIFY_ENCRYPTION_KEY;
+        delete process.env.INPUT_ENCRYPTION_KEY;
       }
       if (originalDebugMode !== undefined) {
-        process.env.DEBUG_MODE = originalDebugMode;
+        process.env.INPUT_DEBUG_MODE = originalDebugMode;
       } else {
-        delete process.env.DEBUG_MODE;
+        delete process.env.INPUT_DEBUG_MODE;
       }
     });
 
     test('ENCRYPTION_KEYが設定されていない場合はエラーを投げる', () => {
-      delete process.env.SLACK_NOTIFY_ENCRYPTION_KEY;
-      delete process.env.DEBUG_MODE;
-      expect(() => getEncryptionKey()).toThrow('ENCRYPTION_KEY is required');
+      delete process.env.INPUT_ENCRYPTION_KEY;
+      delete process.env.INPUT_DEBUG_MODE;
+      expect(() => getEncryptionKey()).toThrow('encryption_key input is required');
     });
 
     test('デバッグモードではENCRYPTION_KEYがなくてもエラーにならない', () => {
-      delete process.env.SLACK_NOTIFY_ENCRYPTION_KEY;
-      process.env.DEBUG_MODE = 'true';
+      delete process.env.INPUT_ENCRYPTION_KEY;
+      process.env.INPUT_DEBUG_MODE = 'true';
       const key = getEncryptionKey();
       expect(key.length).toBe(32);
     });
 
     test('32バイトのキーを返す', () => {
-      process.env.SLACK_NOTIFY_ENCRYPTION_KEY = TEST_KEY_BASE64;
-      delete process.env.DEBUG_MODE;
+      process.env.INPUT_ENCRYPTION_KEY = TEST_KEY_BASE64;
+      delete process.env.INPUT_DEBUG_MODE;
       const key = getEncryptionKey();
       expect(key.length).toBe(32);
     });
 
     test('不正なキー長でエラーを投げる', () => {
-      process.env.SLACK_NOTIFY_ENCRYPTION_KEY = Buffer.from('short').toString('base64');
-      delete process.env.DEBUG_MODE;
+      process.env.INPUT_ENCRYPTION_KEY = Buffer.from('short').toString('base64');
+      delete process.env.INPUT_DEBUG_MODE;
       expect(() => getEncryptionKey()).toThrow('must be 32 bytes');
     });
   });
 
   describe('isEncryptionEnabled', () => {
-    const originalDebugMode = process.env.DEBUG_MODE;
+    const originalDebugMode = process.env.INPUT_DEBUG_MODE;
 
     afterEach(() => {
       if (originalDebugMode !== undefined) {
-        process.env.DEBUG_MODE = originalDebugMode;
+        process.env.INPUT_DEBUG_MODE = originalDebugMode;
       } else {
-        delete process.env.DEBUG_MODE;
+        delete process.env.INPUT_DEBUG_MODE;
       }
     });
 
     test('デバッグモードでない場合はtrueを返す', () => {
-      delete process.env.DEBUG_MODE;
+      delete process.env.INPUT_DEBUG_MODE;
       expect(isEncryptionEnabled()).toBe(true);
     });
 
     test('デバッグモードの場合はfalseを返す', () => {
-      process.env.DEBUG_MODE = 'true';
+      process.env.INPUT_DEBUG_MODE = 'true';
       expect(isEncryptionEnabled()).toBe(false);
     });
   });
