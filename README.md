@@ -33,13 +33,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
-        env:
-          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: pull_request
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           slack_channel: 'C01234567'
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
 
   notify-issue:
     if: github.event_name == 'issues'
@@ -47,13 +46,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
-        env:
-          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: issues
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           slack_channel: 'C01234567'
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
 ```
 
 ### Workflow Notifications
@@ -70,13 +68,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
-        env:
-          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: workflow_run
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           slack_channel: 'C01234567'
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
           workflow_names: 'CI,Deploy'
           notify_on: 'success,failure'
 ```
@@ -95,13 +92,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
-        env:
-          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: summary
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           slack_channel: 'C01234567'
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
 ```
 
 ## Inputs
@@ -117,13 +113,11 @@ jobs:
 | `exclude_project_issues` | No | `true` | Exclude issues linked to GitHub Projects |
 | `workflow_names` | No | - | Comma-separated workflow names to notify |
 | `notify_on` | No | `success,failure` | `success`, `failure`, or both |
+| `base_branches` | No | `all` | Target base branches for PR notifications (e.g., `main`, `main,develop`) |
+| `encryption_key` | Yes* | - | Base64-encoded 32-byte key for state encryption |
+| `debug_mode` | No | `false` | Disable encryption for local development |
 
-## Environment Variables
-
-| Name | Required | Description |
-|------|----------|-------------|
-| `SLACK_NOTIFY_ENCRYPTION_KEY` | Yes | Base64-encoded 32-byte key for encrypting state file |
-| `DEBUG_MODE` | No | Set to `true` to disable encryption (for local development) |
+\* `encryption_key` is required unless `debug_mode` is `true`
 
 ## Outputs
 
@@ -168,13 +162,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ut61z/gh-slack-notify@v1
-        env:
-          SLACK_NOTIFY_ENCRYPTION_KEY: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
         with:
           event_type: pull_request
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           slack_channel: 'C01234567'
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
 ```
 
 Encrypted state file example:
@@ -189,13 +182,15 @@ Encrypted state file example:
 
 ### Debug Mode (Local Development)
 
-For local development, set `DEBUG_MODE=true` to disable encryption:
+For local development, set `INPUT_DEBUG_MODE=true` to disable encryption:
 
 ```bash
-DEBUG_MODE=true bun run dev
+INPUT_DEBUG_MODE=true bun run dev
 ```
 
 In debug mode, data is stored in plain JSON without encryption.
+
+When using as a GitHub Action, pass `debug_mode: 'true'` input instead.
 
 ## License
 
