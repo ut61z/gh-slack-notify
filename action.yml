@@ -1,4 +1,4 @@
-name: 'GitHub Slack Notify'
+name: 'gh-slack-notify'
 description: 'Send GitHub events to Slack with thread replies and daily summaries'
 author: 'ut61z'
 
