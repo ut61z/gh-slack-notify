@@ -24,7 +24,7 @@ on:
     types: [opened, closed]
 
 permissions:
-  contents: write
+  actions: write
 
 jobs:
   notify-pr:
@@ -136,7 +136,7 @@ Your Slack App needs these OAuth Scopes:
 
 ## State Management
 
-PR/Issue notifications are stored in `.github/slack-notifications.json` to enable thread replies on Close/Merge events. All entries are encrypted with AES-256-GCM.
+PR/Issue notifications are stored in GitHub Actions Artifacts to enable thread replies on Close/Merge events. All entries are encrypted with AES-256-GCM.
 
 ### Encryption Setup (Required)
 
