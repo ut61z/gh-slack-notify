@@ -36,7 +36,7 @@ jobs:
         with:
           event_type: pull_request
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
-          slack_channel: 'C01234567'
+          slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
 
@@ -49,7 +49,7 @@ jobs:
         with:
           event_type: issues
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
-          slack_channel: 'C01234567'
+          slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
 ```
@@ -71,7 +71,7 @@ jobs:
         with:
           event_type: workflow_run
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
-          slack_channel: 'C01234567'
+          slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
           workflow_names: 'CI,Deploy'
@@ -95,7 +95,7 @@ jobs:
         with:
           event_type: summary
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
-          slack_channel: 'C01234567'
+          slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
 ```
@@ -165,7 +165,7 @@ jobs:
         with:
           event_type: pull_request
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
-          slack_channel: 'C01234567'
+          slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
 ```
