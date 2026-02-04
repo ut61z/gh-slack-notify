@@ -383,7 +383,10 @@ async function main(): Promise<void> {
         await handleWorkflowRun(inputs);
         break;
       case 'summary':
-        await runSummary(inputs.slackChannel);
+        await runSummary(
+          inputs.slackChannel,
+          `${github.context.repo.owner}/${github.context.repo.repo}`
+        );
         break;
       default:
         throw new Error(`Unknown event_type: ${inputs.eventType}`);

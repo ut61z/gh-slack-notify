@@ -112927,14 +112927,15 @@ function collectSummaryData(state) {
   }
   return data;
 }
-function buildSummaryBlocks(data) {
+function buildSummaryBlocks(data, repository) {
   const today = new Date().toISOString().split("T")[0];
+  const summaryTitle = repository ? `:scroll: Daily Summary (${repository}) - ${today}` : `:scroll: Daily Summary - ${today}`;
   const blocks = [
     {
       type: "header",
       text: {
         type: "plain_text",
-        text: `:scroll: Daily Summary - ${today}`,
+        text: summaryTitle,
         emoji: true
       }
     }
@@ -112999,12 +113000,12 @@ async function deleteTrackedMessages(state, channel) {
     }
   }
 }
-async function runSummary(channel) {
+async function runSummary(channel, repository) {
   core3.info("Running daily summary...");
   const state = await readState();
   const data = collectSummaryData(state);
-  const blocks = buildSummaryBlocks(data);
-  const text = "Daily Summary";
+  const blocks = buildSummaryBlocks(data, repository);
+  const text = repository ? `Daily Summary (${repository})` : "Daily Summary";
   await postMessage(channel, blocks, text);
   core3.info("Summary posted to Slack");
   await deleteTrackedMessages(state, channel);
@@ -113314,7 +113315,7 @@ async function main() {
         await handleWorkflowRun(inputs);
         break;
       case "summary":
-        await runSummary(inputs.slackChannel);
+        await runSummary(inputs.slackChannel, `${github2.context.repo.owner}/${github2.context.repo.repo}`);
         break;
       default:
         throw new Error(`Unknown event_type: ${inputs.eventType}`);

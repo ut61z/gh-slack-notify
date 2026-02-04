@@ -111,15 +111,18 @@ function collectSummaryData(state: NotificationState): SummaryData {
 }
 
 // Build summary message blocks
-function buildSummaryBlocks(data: SummaryData): KnownBlock[] {
+function buildSummaryBlocks(data: SummaryData, repository: string): KnownBlock[] {
   const today = new Date().toISOString().split('T')[0];
+  const summaryTitle = repository
+    ? `:scroll: Daily Summary (${repository}) - ${today}`
+    : `:scroll: Daily Summary - ${today}`;
 
   const blocks: KnownBlock[] = [
     {
       type: 'header',
       text: {
         type: 'plain_text',
-        text: `:scroll: Daily Summary - ${today}`,
+        text: summaryTitle,
         emoji: true,
       },
     },
@@ -222,7 +225,7 @@ async function deleteTrackedMessages(
 }
 
 // Run the daily summary
-export async function runSummary(channel: string): Promise<void> {
+export async function runSummary(channel: string, repository: string): Promise<void> {
   core.info('Running daily summary...');
 
   // 1. Read state
@@ -232,8 +235,8 @@ export async function runSummary(channel: string): Promise<void> {
   const data = collectSummaryData(state);
 
   // 3. Build and send summary message
-  const blocks = buildSummaryBlocks(data);
-  const text = 'Daily Summary';
+  const blocks = buildSummaryBlocks(data, repository);
+  const text = repository ? `Daily Summary (${repository})` : 'Daily Summary';
 
   await postMessage(channel, blocks, text);
   core.info('Summary posted to Slack');
