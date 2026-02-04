@@ -21,6 +21,48 @@ interface SummaryData {
   };
 }
 
+const MAX_SECTION_TEXT_LENGTH = 3000;
+
+function pushSummarySection(
+  blocks: KnownBlock[],
+  title: string,
+  lines: string[]
+): void {
+  if (lines.length === 0) {
+    return;
+  }
+
+  let currentTitle = title;
+  let chunk: string[] = [`*${currentTitle}*`];
+
+  for (const line of lines) {
+    const nextText = [...chunk, line].join('\n');
+    if (nextText.length < MAX_SECTION_TEXT_LENGTH) {
+      chunk.push(line);
+      continue;
+    }
+
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: chunk.join('\n'),
+      },
+    });
+
+    currentTitle = `${title} (cont.)`;
+    chunk = [`*${currentTitle}*`, line];
+  }
+
+  blocks.push({
+    type: 'section',
+    text: {
+      type: 'mrkdwn',
+      text: chunk.join('\n'),
+    },
+  });
+}
+
 // Collect data for summary since last summary
 function collectSummaryData(state: NotificationState): SummaryData {
   const lastSummaryAt = state.last_summary_at
@@ -83,91 +125,42 @@ function buildSummaryBlocks(data: SummaryData): KnownBlock[] {
     },
   ];
 
-  // PRs section
+  // PR sections
   const hasPRs =
     data.prs.opened.length > 0 ||
     data.prs.merged.length > 0 ||
     data.prs.closed.length > 0;
 
   if (hasPRs) {
-    blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: '*Pull Requests*',
-      },
-    });
+    const prOpenedLines = data.prs.opened.map(
+      ({ number, entry }) => `• <${entry.url}|#${number}: ${entry.title}>`
+    );
+    pushSummarySection(blocks, 'Pull Requests / Opened', prOpenedLines);
 
-    const prLines: string[] = [];
+    const prClosedLines = data.prs.closed.map(
+      ({ number, entry }) => `• <${entry.url}|#${number}: ${entry.title}>`
+    );
+    pushSummarySection(blocks, 'Pull Requests / Closed', prClosedLines);
 
-    if (data.prs.merged.length > 0) {
-      prLines.push(':feet: *Merged*');
-      for (const { number, entry } of data.prs.merged) {
-        prLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
-      }
-      prLines.push('');
-    }
-
-    if (data.prs.opened.length > 0) {
-      prLines.push(':trident: *Opened*');
-      for (const { number, entry } of data.prs.opened) {
-        prLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
-      }
-      prLines.push('');
-    }
-
-    if (data.prs.closed.length > 0) {
-      prLines.push(':ballot_box_with_check: *Closed*');
-      for (const { number, entry } of data.prs.closed) {
-        prLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
-      }
-    }
-
-    blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: prLines.join('\n'),
-      },
-    });
+    const prMergedLines = data.prs.merged.map(
+      ({ number, entry }) => `• <${entry.url}|#${number}: ${entry.title}>`
+    );
+    pushSummarySection(blocks, 'Pull Requests / Merged', prMergedLines);
   }
 
-  // Issues section
+  // Issue sections
   const hasIssues = data.issues.opened.length > 0 || data.issues.closed.length > 0;
 
   if (hasIssues) {
-    blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: '*Issues*',
-      },
-    });
+    const issueOpenedLines = data.issues.opened.map(
+      ({ number, entry }) => `• <${entry.url}|#${number}: ${entry.title}>`
+    );
+    pushSummarySection(blocks, 'Issues / Opened', issueOpenedLines);
 
-    const issueLines: string[] = [];
-
-    if (data.issues.opened.length > 0) {
-      issueLines.push(':raised_hand: *Opened*');
-      for (const { number, entry } of data.issues.opened) {
-        issueLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
-      }
-      issueLines.push('');
-    }
-
-    if (data.issues.closed.length > 0) {
-      issueLines.push(':feet: *Closed*');
-      for (const { number, entry } of data.issues.closed) {
-        issueLines.push(`• <${entry.url}|#${number}: ${entry.title}>`);
-      }
-    }
-
-    blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: issueLines.join('\n'),
-      },
-    });
+    const issueClosedLines = data.issues.closed.map(
+      ({ number, entry }) => `• <${entry.url}|#${number}: ${entry.title}>`
+    );
+    pushSummarySection(blocks, 'Issues / Closed', issueClosedLines);
   }
 
   // No activity
