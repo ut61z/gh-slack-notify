@@ -113059,7 +113059,7 @@ async function handlePullRequest(inputs) {
   const prNumber = pr.number.toString();
   const isMerged = pr.merged === true;
   let prEvent;
-  if (action === "opened") {
+  if (action === "opened" || action === "ready_for_review") {
     prEvent = "opened";
   } else if (action === "closed") {
     prEvent = isMerged ? "merged" : "closed";

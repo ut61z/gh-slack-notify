@@ -60,7 +60,7 @@ async function handlePullRequest(inputs: ActionInputs): Promise<void> {
 
   // Determine the actual event type
   let prEvent: 'opened' | 'closed' | 'merged';
-  if (action === 'opened') {
+  if (action === 'opened' || action === 'ready_for_review') {
     prEvent = 'opened';
   } else if (action === 'closed') {
     prEvent = isMerged ? 'merged' : 'closed';
