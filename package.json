@@ -13,7 +13,7 @@
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",
     "@types/bun": "latest",
-    "@types/node": "^25.2.3"
+    "@types/node": "^25.3.0"
   },
   "peerDependencies": {
     "typescript": "^5"
