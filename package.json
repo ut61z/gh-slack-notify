@@ -19,7 +19,7 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@actions/artifact": "^6.2.0",
+    "@actions/artifact": "^6.2.1",
     "@actions/core": "^3.0.0",
     "@actions/github": "^9.0.0",
     "@octokit/graphql": "^9.0.3",
