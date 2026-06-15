@@ -16,6 +16,21 @@ export function getSlackClient(): WebClient {
   return client;
 }
 
+// Truncate text without splitting UTF-16 surrogate pairs (e.g. emoji)
+export function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  let end = maxLength;
+  const code = text.charCodeAt(end - 1);
+  if (code >= 0xd800 && code <= 0xdbff) {
+    end -= 1;
+  }
+
+  return text.substring(0, end) + '...';
+}
+
 // Send a message to Slack
 export async function postMessage(
   channel: string,
@@ -148,12 +163,11 @@ export function buildPRBlocks(params: {
   }
 
   if (body && action === 'opened') {
-    const truncatedBody = body.length > 200 ? body.substring(0, 200) + '...' : body;
     blocks.push({
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: truncatedBody,
+        text: truncateText(body, 200),
       },
     });
   }
@@ -203,12 +217,11 @@ export function buildIssueBlocks(params: {
   ];
 
   if (body && action === 'opened') {
-    const truncatedBody = body.length > 200 ? body.substring(0, 200) + '...' : body;
     blocks.push({
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: truncatedBody,
+        text: truncateText(body, 200),
       },
     });
   }

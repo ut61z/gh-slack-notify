@@ -1,6 +1,28 @@
 import { describe, expect, test } from 'bun:test';
-import { buildPRBlocks, buildIssueBlocks, buildWorkflowBlocks } from './slack.js';
+import { buildPRBlocks, buildIssueBlocks, buildWorkflowBlocks, truncateText } from './slack.js';
 import type { SectionBlock, ContextBlock } from '@slack/web-api';
+
+function hasLoneSurrogate(text: string): boolean {
+  return /[\uD800-\uDBFF]$/.test(text) || /^[\uDC00-\uDFFF]/.test(text);
+}
+
+describe('truncateText', () => {
+  test('maxLength以下はそのまま返す', () => {
+    expect(truncateText('hello', 10)).toBe('hello');
+  });
+
+  test('maxLengthを超える場合は省略記号を付ける', () => {
+    expect(truncateText('a'.repeat(250), 200)).toBe('a'.repeat(200) + '...');
+  });
+
+  test('絵文字の途中で切らない', () => {
+    const text = 'x'.repeat(199) + '👀';
+    const truncated = truncateText(text, 200);
+
+    expect(truncated).toEndWith('...');
+    expect(hasLoneSurrogate(truncated.replace(/\.\.\.$/, ''))).toBe(false);
+  });
+});
 
 describe('buildPRBlocks', () => {
   const baseParams = {
@@ -60,6 +82,26 @@ describe('buildPRBlocks', () => {
       const bodyText = (blocks[3] as SectionBlock).text?.text;
       expect(bodyText).toHaveLength(203); // 200 + '...'
       expect(bodyText).toEndWith('...');
+    });
+
+    test('絵文字を含むbodyでも壊れたUnicodeにならない', () => {
+      const body =
+        '## 📎 関連リンク\r\n\r\n## ✅ やったこと\r\n\r\n' +
+        '- Dockerfileなどに加え、GHA workflow内のbun-version記述も捕捉できるようRenovate configを調整しました\r\n' +
+        '  - これの検知範囲が広がる感じです: https://github.com/TheMoshInc/taiyaki/pull/8076\r\n\r\n' +
+        '## 📝 やらなかったこと\r\n\r\n## 👀 確認方法\r\n\r\n' +
+        '- ちゃんとした動作確認はまだなので、merge後動かなかったら再度調整させてください 🙏 \r\n\r\n' +
+        '## 📷 キャプチャ\r\n';
+
+      const blocks = buildPRBlocks({
+        ...baseParams,
+        action: 'opened',
+        body,
+      });
+
+      const bodyText = (blocks[3] as SectionBlock).text?.text ?? '';
+      expect(bodyText).toEndWith('...');
+      expect(hasLoneSurrogate(bodyText.replace(/\.\.\.$/, ''))).toBe(false);
     });
   });
 
