@@ -21,7 +21,7 @@
   "dependencies": {
     "@actions/artifact": "^6.2.1",
     "@actions/core": "^3.0.0",
-    "@actions/github": "^9.0.0",
+    "@actions/github": "^9.1.1",
     "@octokit/graphql": "^9.0.3",
     "@slack/web-api": "^7.15.0",
     "adm-zip": "^0.5.17"
