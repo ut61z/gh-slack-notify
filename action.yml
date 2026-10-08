@@ -17,7 +17,7 @@ inputs:
     description: 'Slack channel ID (C01234567)'
     required: true
   github_token:
-    description: 'GitHub Token for API access and state management'
+    description: 'GitHub Token for API access'
     required: true
   label_filter_mode:
     description: 'Label filter mode: whitelist or blacklist'
@@ -43,14 +43,6 @@ inputs:
     description: 'Target base branches to notify (e.g., "main", "main,develop", or "all" for all branches)'
     required: false
     default: 'all'
-  encryption_key:
-    description: 'Encryption key for state data (base64-encoded 32 bytes). Required unless debug_mode is true.'
-    required: false
-    default: ''
-  debug_mode:
-    description: 'Enable debug mode (disables encryption). For local development only.'
-    required: false
-    default: 'false'
 
 outputs:
   message_ts:

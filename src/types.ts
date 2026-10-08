@@ -1,37 +1,22 @@
 // Event types
 export type EventType = 'pull_request' | 'issues' | 'workflow_run' | 'summary';
 
-// PR entry in state
-export interface PullRequestEntry {
-  channel: string;
-  message_ts: string;
-  reply_message_ts?: string;
-  created_at: string;
-  event: 'opened' | 'closed' | 'merged';
+export type ItemKind = 'pr' | 'issue';
+export type ItemEvent = 'opened' | 'closed' | 'merged';
+
+export interface ItemMetadataPayload {
+  kind: ItemKind;
+  repo: string;
+  number: number;
   title: string;
   url: string;
-  repo: string;
-  author: string;
+  event: ItemEvent;
 }
 
-// Issue entry in state
-export interface IssueEntry {
-  channel: string;
-  message_ts: string;
-  reply_message_ts?: string;
-  created_at: string;
-  event: 'opened' | 'closed';
-  title: string;
-  url: string;
-  repo: string;
-  author: string;
-}
-
-// State file structure
-export interface NotificationState {
-  last_summary_at?: string;
-  pull_requests: Record<string, PullRequestEntry>;
-  issues: Record<string, IssueEntry>;
+export interface TrackedItem extends ItemMetadataPayload {
+  ts: string;
+  threadTs: string | null;
+  replyCount: number;
 }
 
 // Action inputs
