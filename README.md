@@ -21,8 +21,8 @@ on:
   pull_request:
     types: [opened, ready_for_review]
   issues:
-    types: [opened, ready_for_review]
     types: [opened]
+
 jobs:
   notify-pr:
     if: github.event_name == 'pull_request'
