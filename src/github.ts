@@ -1,7 +1,11 @@
 import { graphql } from '@octokit/graphql';
 import * as core from '@actions/core';
+import * as github from '@actions/github';
+
+const PAGE_SIZE = 100;
 
 let graphqlClient: typeof graphql | null = null;
+let restClient: ReturnType<typeof github.getOctokit> | null = null;
 
 // Sleep utility
 function sleep(ms: number): Promise<void> {
@@ -9,6 +13,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 export function initGitHubClient(token: string): void {
+  restClient = github.getOctokit(token);
   graphqlClient = graphql.defaults({
     headers: {
       authorization: `token ${token}`,
@@ -21,6 +26,101 @@ function getGraphQLClient(): typeof graphql {
     throw new Error('GitHub client not initialized. Call initGitHubClient first.');
   }
   return graphqlClient;
+}
+
+export function getRestClient(): ReturnType<typeof github.getOctokit> {
+  if (!restClient) {
+    throw new Error('GitHub client not initialized. Call initGitHubClient first.');
+  }
+  return restClient;
+}
+
+export interface ClosedItem {
+  number: number;
+  title: string;
+  url: string;
+  labels: string[];
+}
+
+export interface ClosedPullRequest extends ClosedItem {
+  merged: boolean;
+  draft: boolean;
+  baseBranch: string;
+}
+
+function labelNames(labels: Array<string | { name?: string }>): string[] {
+  return labels.map((label) => (typeof label === 'string' ? label : (label.name ?? '')));
+}
+
+export async function listClosedPullRequests(
+  owner: string,
+  repo: string,
+  since: Date
+): Promise<ClosedPullRequest[]> {
+  const pulls: ClosedPullRequest[] = [];
+
+  for (let page = 1; ; page++) {
+    const { data } = await getRestClient().rest.pulls.list({
+      owner,
+      repo,
+      state: 'closed',
+      sort: 'updated',
+      direction: 'desc',
+      per_page: PAGE_SIZE,
+      page,
+    });
+
+    for (const pr of data) {
+      if (new Date(pr.updated_at) < since) {
+        return pulls;
+      }
+      if (pr.closed_at && new Date(pr.closed_at) >= since) {
+        pulls.push({
+          number: pr.number,
+          title: pr.title,
+          url: pr.html_url,
+          labels: labelNames(pr.labels),
+          merged: pr.merged_at !== null,
+          draft: pr.draft === true,
+          baseBranch: pr.base.ref,
+        });
+      }
+    }
+
+    if (data.length < PAGE_SIZE) {
+      return pulls;
+    }
+  }
+}
+
+export async function listClosedIssues(owner: string, repo: string, since: Date): Promise<ClosedItem[]> {
+  const issues: ClosedItem[] = [];
+
+  for (let page = 1; ; page++) {
+    const { data } = await getRestClient().rest.issues.listForRepo({
+      owner,
+      repo,
+      state: 'closed',
+      since: since.toISOString(),
+      per_page: PAGE_SIZE,
+      page,
+    });
+
+    for (const issue of data) {
+      if (!issue.pull_request && issue.closed_at && new Date(issue.closed_at) >= since) {
+        issues.push({
+          number: issue.number,
+          title: issue.title,
+          url: issue.html_url,
+          labels: labelNames(issue.labels),
+        });
+      }
+    }
+
+    if (data.length < PAGE_SIZE) {
+      return issues;
+    }
+  }
 }
 
 // Check if an issue is linked to a GitHub Project

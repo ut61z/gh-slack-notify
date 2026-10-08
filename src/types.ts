@@ -2,7 +2,6 @@
 export type EventType = 'pull_request' | 'issues' | 'workflow_run' | 'summary';
 
 export type ItemKind = 'pr' | 'issue';
-export type ItemEvent = 'opened' | 'closed' | 'merged';
 
 export interface ItemMetadataPayload {
   kind: ItemKind;
@@ -10,13 +9,23 @@ export interface ItemMetadataPayload {
   number: number;
   title: string;
   url: string;
-  event: ItemEvent;
 }
+
+export interface SummaryMetadataPayload {
+  repo: string;
+}
+
+export type MessageMetadata =
+  | { eventType: 'gh_slack_notify_item'; payload: ItemMetadataPayload }
+  | { eventType: 'gh_slack_notify_summary'; payload: SummaryMetadataPayload };
 
 export interface TrackedItem extends ItemMetadataPayload {
   ts: string;
-  threadTs: string | null;
-  replyCount: number;
+}
+
+export interface ChannelActivity {
+  items: TrackedItem[];
+  lastSummaryTs: string | null;
 }
 
 // Action inputs

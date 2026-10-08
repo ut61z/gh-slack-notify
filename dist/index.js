@@ -38684,6 +38684,14 @@ var __awaiter2 = function(thisArg, _arguments, P, generator) {
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+function getAuthString(token, options) {
+  if (!token && !options.auth) {
+    throw new Error("Parameter token or opts.auth is required");
+  } else if (token && options.auth) {
+    throw new Error("Parameters token and opts.auth may not both be specified");
+  }
+  return typeof options.auth === "string" ? options.auth : `token ${token}`;
+}
 function getProxyAgent(destinationUrl) {
   const hc = new httpClient.HttpClient;
   return hc.getAgent(destinationUrl);
@@ -42147,13 +42155,26 @@ var defaults = {
   }
 };
 var GitHub = Octokit.plugin(restEndpointMethods, paginateRest).defaults(defaults);
+function getOctokitOptions(token, options) {
+  const opts = Object.assign({}, options || {});
+  const auth2 = getAuthString(token, opts);
+  if (auth2) {
+    opts.auth = auth2;
+  }
+  return opts;
+}
 
 // node_modules/@actions/github/lib/github.js
 var context2 = new Context;
+function getOctokit(token, options, ...additionalPlugins) {
+  const GitHubWithPlugins = GitHub.plugin(...additionalPlugins);
+  return new GitHubWithPlugins(getOctokitOptions(token, options));
+}
 
 // src/slack.ts
 var import_web_api = __toESM(require_dist5(), 1);
 var ITEM_EVENT_TYPE = "gh_slack_notify_item";
+var SUMMARY_EVENT_TYPE = "gh_slack_notify_summary";
 var HISTORY_LOOKBACK_DAYS = 14;
 var MS_PER_DAY = 24 * 60 * 60 * 1000;
 var PAGE_SIZE = 200;
@@ -42181,9 +42202,9 @@ function truncateText(text, maxLength) {
 }
 async function postMessage(channel, blocks, text, options) {
   const slack = getSlackClient();
-  const { threadTs, replyBroadcast, color, metadata } = options ?? {};
-  const messageMetadata = metadata ? { event_type: ITEM_EVENT_TYPE, event_payload: { ...metadata } } : undefined;
-  const baseOptions = color ? {
+  const { color, metadata } = options ?? {};
+  const messageMetadata = metadata ? { event_type: metadata.eventType, event_payload: { ...metadata.payload } } : undefined;
+  const result = await slack.chat.postMessage(color ? {
     channel,
     attachments: [{ color, blocks }],
     text,
@@ -42197,12 +42218,7 @@ async function postMessage(channel, blocks, text, options) {
     metadata: messageMetadata,
     unfurl_links: false,
     unfurl_media: false
-  };
-  const result = threadTs ? await slack.chat.postMessage({
-    ...baseOptions,
-    thread_ts: threadTs,
-    reply_broadcast: replyBroadcast ?? false
-  }) : await slack.chat.postMessage(baseOptions);
+  });
   if (!result.ok || !result.ts) {
     throw new Error(`Failed to post message: ${result.error}`);
   }
@@ -42227,40 +42243,42 @@ async function deleteMessage(channel, ts) {
 function isMessageNotFound(error2) {
   return typeof error2 === "object" && error2 !== null && "data" in error2 && typeof error2.data === "object" && error2.data !== null && "error" in error2.data && error2.data.error === "message_not_found";
 }
-var ITEM_KINDS = ["pr", "issue"];
-var ITEM_EVENTS = ["opened", "closed", "merged"];
-function parseTrackedItem(message, botId, repo) {
+function parseOwnMessage(message, botId, repo) {
   const { ts, metadata } = message;
-  if (!ts || message.bot_id !== botId || metadata?.event_type !== ITEM_EVENT_TYPE) {
+  if (!ts || message.bot_id !== botId || !metadata) {
     return null;
   }
   const payload = metadata.event_payload;
-  if (!payload || payload.repo !== repo || typeof payload.kind !== "string" || !ITEM_KINDS.includes(payload.kind) || typeof payload.event !== "string" || !ITEM_EVENTS.includes(payload.event) || typeof payload.number !== "number") {
+  if (!payload || payload.repo !== repo) {
+    return null;
+  }
+  if (metadata.event_type === SUMMARY_EVENT_TYPE) {
+    return { type: "summary", ts };
+  }
+  if (metadata.event_type !== ITEM_EVENT_TYPE || payload.kind !== "pr" && payload.kind !== "issue" || typeof payload.number !== "number") {
     return null;
   }
   return {
-    kind: payload.kind,
-    repo,
-    number: payload.number,
-    title: String(payload.title ?? ""),
-    url: String(payload.url ?? ""),
-    event: payload.event,
-    ts,
-    threadTs: message.thread_ts && message.thread_ts !== ts ? message.thread_ts : null,
-    replyCount: message.reply_count ?? 0
+    type: "item",
+    item: {
+      kind: payload.kind,
+      repo,
+      number: payload.number,
+      title: String(payload.title ?? ""),
+      url: String(payload.url ?? ""),
+      ts
+    }
   };
 }
-async function getOwnBotId() {
-  const auth2 = await getSlackClient().auth.test();
+async function listChannelActivity(channel, repo) {
+  const slack = getSlackClient();
+  const auth2 = await slack.auth.test();
   if (!auth2.bot_id) {
     throw new Error("auth.test did not return bot_id. A bot token (xoxb-) is required.");
   }
-  return auth2.bot_id;
-}
-async function listHistoryItems(channel, repo, botId) {
-  const slack = getSlackClient();
   const oldest = ((Date.now() - HISTORY_LOOKBACK_DAYS * MS_PER_DAY) / 1000).toString();
   const items = [];
+  let lastSummaryTs = null;
   let cursor;
   do {
     const page = await slack.conversations.history({
@@ -42271,53 +42289,16 @@ async function listHistoryItems(channel, repo, botId) {
       cursor
     });
     for (const message of page.messages ?? []) {
-      const item = parseTrackedItem(message, botId, repo);
-      if (item) {
-        items.push(item);
+      const parsed = parseOwnMessage(message, auth2.bot_id, repo);
+      if (parsed?.type === "item") {
+        items.push(parsed.item);
+      } else if (parsed?.type === "summary" && (!lastSummaryTs || Number(parsed.ts) > Number(lastSummaryTs))) {
+        lastSummaryTs = parsed.ts;
       }
     }
     cursor = page.response_metadata?.next_cursor || undefined;
   } while (cursor);
-  return items;
-}
-async function listReplyItems(channel, parentTs, repo, botId) {
-  const slack = getSlackClient();
-  const items = [];
-  let cursor;
-  do {
-    const page = await slack.conversations.replies({
-      channel,
-      ts: parentTs,
-      include_all_metadata: true,
-      limit: PAGE_SIZE,
-      cursor
-    });
-    for (const message of page.messages ?? []) {
-      const item = parseTrackedItem(message, botId, repo);
-      if (item && item.threadTs !== null) {
-        items.push(item);
-      }
-    }
-    cursor = page.response_metadata?.next_cursor || undefined;
-  } while (cursor);
-  return items;
-}
-async function findOpenedThreadTs(channel, repo, kind, number) {
-  const botId = await getOwnBotId();
-  const items = await listHistoryItems(channel, repo, botId);
-  const opened = items.find((item) => item.event === "opened" && item.kind === kind && item.number === number && item.threadTs === null);
-  return opened?.ts ?? null;
-}
-async function listTrackedItems(channel, repo) {
-  const botId = await getOwnBotId();
-  const historyItems = await listHistoryItems(channel, repo, botId);
-  const itemsByTs = new Map(historyItems.map((item) => [item.ts, item]));
-  for (const parent of historyItems.filter((item) => item.threadTs === null && item.replyCount > 0)) {
-    for (const reply of await listReplyItems(channel, parent.ts, repo, botId)) {
-      itemsByTs.set(reply.ts, reply);
-    }
-  }
-  return [...itemsByTs.values()];
+  return { items, lastSummaryTs };
 }
 function buildPRBlocks(params) {
   const { action, title, url, number, repo, author, body, reviewers } = params;
@@ -42458,11 +42439,14 @@ function buildWorkflowBlocks(params) {
 }
 
 // src/github.ts
+var PAGE_SIZE2 = 100;
 var graphqlClient = null;
+var restClient = null;
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 function initGitHubClient(token) {
+  restClient = getOctokit(token);
   graphqlClient = graphql2.defaults({
     headers: {
       authorization: `token ${token}`
@@ -42474,6 +42458,74 @@ function getGraphQLClient() {
     throw new Error("GitHub client not initialized. Call initGitHubClient first.");
   }
   return graphqlClient;
+}
+function getRestClient() {
+  if (!restClient) {
+    throw new Error("GitHub client not initialized. Call initGitHubClient first.");
+  }
+  return restClient;
+}
+function labelNames(labels) {
+  return labels.map((label) => typeof label === "string" ? label : label.name ?? "");
+}
+async function listClosedPullRequests(owner, repo, since) {
+  const pulls = [];
+  for (let page = 1;; page++) {
+    const { data } = await getRestClient().rest.pulls.list({
+      owner,
+      repo,
+      state: "closed",
+      sort: "updated",
+      direction: "desc",
+      per_page: PAGE_SIZE2,
+      page
+    });
+    for (const pr of data) {
+      if (new Date(pr.updated_at) < since) {
+        return pulls;
+      }
+      if (pr.closed_at && new Date(pr.closed_at) >= since) {
+        pulls.push({
+          number: pr.number,
+          title: pr.title,
+          url: pr.html_url,
+          labels: labelNames(pr.labels),
+          merged: pr.merged_at !== null,
+          draft: pr.draft === true,
+          baseBranch: pr.base.ref
+        });
+      }
+    }
+    if (data.length < PAGE_SIZE2) {
+      return pulls;
+    }
+  }
+}
+async function listClosedIssues(owner, repo, since) {
+  const issues = [];
+  for (let page = 1;; page++) {
+    const { data } = await getRestClient().rest.issues.listForRepo({
+      owner,
+      repo,
+      state: "closed",
+      since: since.toISOString(),
+      per_page: PAGE_SIZE2,
+      page
+    });
+    for (const issue2 of data) {
+      if (!issue2.pull_request && issue2.closed_at && new Date(issue2.closed_at) >= since) {
+        issues.push({
+          number: issue2.number,
+          title: issue2.title,
+          url: issue2.html_url,
+          labels: labelNames(issue2.labels)
+        });
+      }
+    }
+    if (data.length < PAGE_SIZE2) {
+      return issues;
+    }
+  }
 }
 async function isIssueLinkedToProject(owner, repo, issueNumber) {
   const client2 = getGraphQLClient();
@@ -42524,6 +42576,7 @@ function shouldNotifyByBaseBranch(baseBranch, baseBranches) {
 
 // src/summary.ts
 var MAX_SECTION_TEXT_LENGTH = 3000;
+var DEFAULT_SUMMARY_WINDOW_MS = 24 * 60 * 60 * 1000;
 function pushSummarySection(blocks, title, lines) {
   if (lines.length === 0) {
     return;
@@ -42557,29 +42610,11 @@ function pushSummarySection(blocks, title, lines) {
     }
   });
 }
-function collectSummaryData(items) {
-  const latestByItem = new Map;
-  for (const item of items) {
-    const key = `${item.kind}#${item.number}`;
-    const current = latestByItem.get(key);
-    if (!current || Number(item.ts) > Number(current.ts)) {
-      latestByItem.set(key, item);
-    }
-  }
-  const data = {
-    prs: { opened: [], merged: [], closed: [] },
-    issues: { opened: [], closed: [] }
-  };
-  for (const item of latestByItem.values()) {
-    if (item.kind === "pr") {
-      if (item.event === "opened" || item.event === "merged" || item.event === "closed") {
-        data.prs[item.event].push(item);
-      }
-    } else if (item.event === "opened" || item.event === "closed") {
-      data.issues[item.event].push(item);
-    }
-  }
-  return data;
+function uniqueByNumber(entries) {
+  return [...new Map(entries.map((entry) => [entry.number, entry])).values()];
+}
+function toSummaryLine(entry) {
+  return `• <${entry.url}|#${entry.number}: ${entry.title}>`;
 }
 function buildSummaryBlocks(data, repository) {
   const today = new Date().toISOString().split("T")[0];
@@ -42596,19 +42631,14 @@ function buildSummaryBlocks(data, repository) {
   ];
   const hasPRs = data.prs.opened.length > 0 || data.prs.merged.length > 0 || data.prs.closed.length > 0;
   if (hasPRs) {
-    const prOpenedLines = data.prs.opened.map((item) => `• <${item.url}|#${item.number}: ${item.title}>`);
-    pushSummarySection(blocks, "Pull Requests / Opened", prOpenedLines);
-    const prClosedLines = data.prs.closed.map((item) => `• <${item.url}|#${item.number}: ${item.title}>`);
-    pushSummarySection(blocks, "Pull Requests / Closed", prClosedLines);
-    const prMergedLines = data.prs.merged.map((item) => `• <${item.url}|#${item.number}: ${item.title}>`);
-    pushSummarySection(blocks, "Pull Requests / Merged", prMergedLines);
+    pushSummarySection(blocks, "Pull Requests / Opened", data.prs.opened.map(toSummaryLine));
+    pushSummarySection(blocks, "Pull Requests / Closed", data.prs.closed.map(toSummaryLine));
+    pushSummarySection(blocks, "Pull Requests / Merged", data.prs.merged.map(toSummaryLine));
   }
   const hasIssues = data.issues.opened.length > 0 || data.issues.closed.length > 0;
   if (hasIssues) {
-    const issueOpenedLines = data.issues.opened.map((item) => `• <${item.url}|#${item.number}: ${item.title}>`);
-    pushSummarySection(blocks, "Issues / Opened", issueOpenedLines);
-    const issueClosedLines = data.issues.closed.map((item) => `• <${item.url}|#${item.number}: ${item.title}>`);
-    pushSummarySection(blocks, "Issues / Closed", issueClosedLines);
+    pushSummarySection(blocks, "Issues / Opened", data.issues.opened.map(toSummaryLine));
+    pushSummarySection(blocks, "Issues / Closed", data.issues.closed.map(toSummaryLine));
   }
   if (!hasPRs && !hasIssues) {
     blocks.push({
@@ -42622,11 +42652,9 @@ function buildSummaryBlocks(data, repository) {
   return blocks;
 }
 async function deleteTrackedItems(items, channel) {
-  const replies = items.filter((item) => item.threadTs !== null);
-  const parents = items.filter((item) => item.threadTs === null);
   info(`Deleting ${items.length} messages...`);
-  for (const item of [...replies, ...parents]) {
-    const label = `${item.kind === "pr" ? "PR" : "Issue"}${item.threadTs !== null ? " reply" : ""} #${item.number}`;
+  for (const item of items) {
+    const label = `${item.kind === "pr" ? "PR" : "Issue"} #${item.number}`;
     if (await deleteMessage(channel, item.ts)) {
       info(`Deleted ${label} message`);
     } else {
@@ -42634,12 +42662,32 @@ async function deleteTrackedItems(items, channel) {
     }
   }
 }
-async function runSummary(channel, repository) {
+async function runSummary(channel, repository, filters) {
   info("Running daily summary...");
-  const items = await listTrackedItems(channel, repository);
-  const blocks = buildSummaryBlocks(collectSummaryData(items), repository);
+  const [owner, repo] = repository.split("/");
+  const { items, lastSummaryTs } = await listChannelActivity(channel, repository);
+  const since = lastSummaryTs ? new Date(Number(lastSummaryTs) * 1000) : new Date(Date.now() - DEFAULT_SUMMARY_WINDOW_MS);
+  const closedPulls = (await listClosedPullRequests(owner, repo, since)).filter((pr) => !pr.draft && shouldNotifyByLabels(pr.labels, filters.labelFilterMode, filters.filterLabels) && shouldNotifyByBaseBranch(pr.baseBranch, filters.baseBranches));
+  const closedIssues = (await listClosedIssues(owner, repo, since)).filter((issue2) => shouldNotifyByLabels(issue2.labels, filters.labelFilterMode, filters.filterLabels));
+  const closedPullNumbers = new Set(closedPulls.map((pr) => pr.number));
+  const closedIssueNumbers = new Set(closedIssues.map((issue2) => issue2.number));
+  const openedPulls = items.filter((item) => item.kind === "pr" && !closedPullNumbers.has(item.number));
+  const openedIssues = items.filter((item) => item.kind === "issue" && !closedIssueNumbers.has(item.number));
+  const data = {
+    prs: {
+      opened: uniqueByNumber(openedPulls),
+      merged: closedPulls.filter((pr) => pr.merged),
+      closed: closedPulls.filter((pr) => !pr.merged)
+    },
+    issues: {
+      opened: uniqueByNumber(openedIssues),
+      closed: closedIssues
+    }
+  };
   const text = repository ? `Daily Summary (${repository})` : "Daily Summary";
-  await postMessage(channel, blocks, text);
+  await postMessage(channel, buildSummaryBlocks(data, repository), text, {
+    metadata: { eventType: SUMMARY_EVENT_TYPE, payload: { repo: repository } }
+  });
   info("Summary posted to Slack");
   await deleteTrackedItems(items, channel);
   info("Daily summary completed");
@@ -42686,14 +42734,9 @@ async function handlePullRequest(inputs) {
     throw new Error("No pull_request in payload");
   }
   const action = payload.action;
-  const isMerged = pr.merged === true;
-  let prEvent;
-  if (action === "opened" || action === "ready_for_review") {
-    prEvent = "opened";
-  } else if (action === "closed") {
-    prEvent = isMerged ? "merged" : "closed";
-  } else {
-    info(`Ignoring PR action: ${action}`);
+  if (action !== "opened" && action !== "ready_for_review") {
+    info(`Ignoring PR action: ${action} (closed PRs are collected by the summary)`);
+    setOutput("notified", "false");
     return;
   }
   const labels = (pr.labels || []).map((l) => l.name);
@@ -42713,33 +42756,26 @@ async function handlePullRequest(inputs) {
   const prBody = pr.body || undefined;
   const author = pr.user?.login || "unknown";
   const reviewers = (pr.requested_reviewers || []).map((r) => r.login);
-  const repoFullName = `${repo.owner}/${repo.repo}`;
-  const metadata = { kind: "pr", repo: repoFullName, number: pr.number, title: prTitle, url: prUrl, event: prEvent };
   const blocks = buildPRBlocks({
-    action: prEvent,
+    action: "opened",
     title: prTitle,
     url: prUrl,
     number: pr.number,
     repo: repo.repo,
     author,
-    body: prEvent === "opened" ? prBody : undefined,
+    body: prBody,
     reviewers
   });
-  let messageTs;
-  if (prEvent === "opened") {
-    messageTs = await postMessage(inputs.slackChannel, blocks, "", { color: COLORS.OPEN, metadata });
-  } else {
-    const threadTs = await findOpenedThreadTs(inputs.slackChannel, repoFullName, "pr", pr.number);
-    messageTs = await postMessage(inputs.slackChannel, blocks, "", {
-      threadTs: threadTs ?? undefined,
-      replyBroadcast: true,
-      color: COLORS.MERGED,
-      metadata
-    });
-  }
+  const messageTs = await postMessage(inputs.slackChannel, blocks, "", {
+    color: COLORS.OPEN,
+    metadata: {
+      eventType: ITEM_EVENT_TYPE,
+      payload: { kind: "pr", repo: `${repo.owner}/${repo.repo}`, number: pr.number, title: prTitle, url: prUrl }
+    }
+  });
   setOutput("message_ts", messageTs);
   setOutput("notified", "true");
-  info(`PR #${pr.number} ${prEvent} notification sent`);
+  info(`PR #${pr.number} opened notification sent`);
 }
 async function handleIssue(inputs) {
   const { payload, repo } = context2;
@@ -42748,13 +42784,9 @@ async function handleIssue(inputs) {
     throw new Error("No issue in payload");
   }
   const action = payload.action;
-  let issueEvent;
-  if (action === "opened") {
-    issueEvent = "opened";
-  } else if (action === "closed") {
-    issueEvent = "closed";
-  } else {
-    info(`Ignoring issue action: ${action}`);
+  if (action !== "opened") {
+    info(`Ignoring issue action: ${action} (closed issues are collected by the summary)`);
+    setOutput("notified", "false");
     return;
   }
   const labels = (issue2.labels || []).map((l) => l.name);
@@ -42763,7 +42795,7 @@ async function handleIssue(inputs) {
     setOutput("notified", "false");
     return;
   }
-  if (inputs.excludeProjectIssues && issueEvent === "opened") {
+  if (inputs.excludeProjectIssues) {
     const isLinked = await isIssueLinkedToProject(repo.owner, repo.repo, issue2.number);
     if (isLinked) {
       info("Issue is linked to a project, skipping notification");
@@ -42775,31 +42807,25 @@ async function handleIssue(inputs) {
   const issueUrl = issue2.html_url || `https://github.com/${repo.owner}/${repo.repo}/issues/${issue2.number}`;
   const issueBody = issue2.body || undefined;
   const author = issue2.user?.login || "unknown";
-  const repoFullName = `${repo.owner}/${repo.repo}`;
-  const metadata = { kind: "issue", repo: repoFullName, number: issue2.number, title: issueTitle, url: issueUrl, event: issueEvent };
   const blocks = buildIssueBlocks({
-    action: issueEvent,
+    action: "opened",
     title: issueTitle,
     url: issueUrl,
     number: issue2.number,
     repo: repo.repo,
     author,
-    body: issueEvent === "opened" ? issueBody : undefined
+    body: issueBody
   });
-  let messageTs;
-  if (issueEvent === "opened") {
-    messageTs = await postMessage(inputs.slackChannel, blocks, "", { color: COLORS.OPEN, metadata });
-  } else {
-    const threadTs = await findOpenedThreadTs(inputs.slackChannel, repoFullName, "issue", issue2.number);
-    messageTs = await postMessage(inputs.slackChannel, blocks, "", {
-      threadTs: threadTs ?? undefined,
-      color: COLORS.CLOSED,
-      metadata
-    });
-  }
+  const messageTs = await postMessage(inputs.slackChannel, blocks, "", {
+    color: COLORS.OPEN,
+    metadata: {
+      eventType: ITEM_EVENT_TYPE,
+      payload: { kind: "issue", repo: `${repo.owner}/${repo.repo}`, number: issue2.number, title: issueTitle, url: issueUrl }
+    }
+  });
   setOutput("message_ts", messageTs);
   setOutput("notified", "true");
-  info(`Issue #${issue2.number} ${issueEvent} notification sent`);
+  info(`Issue #${issue2.number} opened notification sent`);
 }
 async function handleWorkflowRun(inputs) {
   const { payload, repo } = context2;
@@ -42868,7 +42894,7 @@ async function main() {
         await handleWorkflowRun(inputs);
         break;
       case "summary":
-        await runSummary(inputs.slackChannel, `${context2.repo.owner}/${context2.repo.repo}`);
+        await runSummary(inputs.slackChannel, `${context2.repo.owner}/${context2.repo.repo}`, inputs);
         break;
       default:
         throw new Error(`Unknown event_type: ${inputs.eventType}`);

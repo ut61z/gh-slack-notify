@@ -1,8 +1,9 @@
 import { WebClient } from '@slack/web-api';
 import type { KnownBlock } from '@slack/web-api';
-import type { ItemKind, ItemMetadataPayload, TrackedItem } from './types.js';
+import type { ChannelActivity, MessageMetadata, TrackedItem } from './types.js';
 
 export const ITEM_EVENT_TYPE = 'gh_slack_notify_item';
+export const SUMMARY_EVENT_TYPE = 'gh_slack_notify_summary';
 const HISTORY_LOOKBACK_DAYS = 14;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PAGE_SIZE = 200;
@@ -42,44 +43,36 @@ export async function postMessage(
   blocks: KnownBlock[],
   text: string,
   options?: {
-    threadTs?: string;
-    replyBroadcast?: boolean;
     color?: string;
-    metadata?: ItemMetadataPayload;
+    metadata?: MessageMetadata;
   }
 ): Promise<string> {
   const slack = getSlackClient();
-  const { threadTs, replyBroadcast, color, metadata } = options ?? {};
+  const { color, metadata } = options ?? {};
   const messageMetadata = metadata
-    ? { event_type: ITEM_EVENT_TYPE, event_payload: { ...metadata } }
+    ? { event_type: metadata.eventType, event_payload: { ...metadata.payload } }
     : undefined;
 
   // colorが指定されている場合はattachmentsを使う
-  const baseOptions = color
-    ? {
-        channel,
-        attachments: [{ color, blocks }],
-        text,
-        metadata: messageMetadata,
-        unfurl_links: false as const,
-        unfurl_media: false as const,
-      }
-    : {
-        channel,
-        blocks,
-        text,
-        metadata: messageMetadata,
-        unfurl_links: false as const,
-        unfurl_media: false as const,
-      };
-
-  const result = threadTs
-    ? await slack.chat.postMessage({
-        ...baseOptions,
-        thread_ts: threadTs,
-        reply_broadcast: replyBroadcast ?? false,
-      })
-    : await slack.chat.postMessage(baseOptions);
+  const result = await slack.chat.postMessage(
+    color
+      ? {
+          channel,
+          attachments: [{ color, blocks }],
+          text,
+          metadata: messageMetadata,
+          unfurl_links: false,
+          unfurl_media: false,
+        }
+      : {
+          channel,
+          blocks,
+          text,
+          metadata: messageMetadata,
+          unfurl_links: false,
+          unfurl_media: false,
+        }
+  );
 
   if (!result.ok || !result.ts) {
     throw new Error(`Failed to post message: ${result.error}`);
@@ -119,59 +112,61 @@ function isMessageNotFound(error: unknown): boolean {
 
 interface SlackMessageLike {
   ts?: string;
-  thread_ts?: string;
-  reply_count?: number;
   bot_id?: string;
   metadata?: { event_type?: string; event_payload?: unknown };
 }
 
-const ITEM_KINDS: readonly string[] = ['pr', 'issue'];
-const ITEM_EVENTS: readonly string[] = ['opened', 'closed', 'merged'];
+type ParsedMessage =
+  | { type: 'item'; item: TrackedItem }
+  | { type: 'summary'; ts: string }
+  | null;
 
-function parseTrackedItem(message: SlackMessageLike, botId: string, repo: string): TrackedItem | null {
+function parseOwnMessage(message: SlackMessageLike, botId: string, repo: string): ParsedMessage {
   const { ts, metadata } = message;
-  if (!ts || message.bot_id !== botId || metadata?.event_type !== ITEM_EVENT_TYPE) {
+  if (!ts || message.bot_id !== botId || !metadata) {
     return null;
   }
 
-  const payload = metadata.event_payload as Partial<Record<keyof ItemMetadataPayload, unknown>> | undefined;
+  const payload = metadata.event_payload as Record<string, unknown> | undefined;
+  if (!payload || payload.repo !== repo) {
+    return null;
+  }
+
+  if (metadata.event_type === SUMMARY_EVENT_TYPE) {
+    return { type: 'summary', ts };
+  }
+
   if (
-    !payload ||
-    payload.repo !== repo ||
-    typeof payload.kind !== 'string' ||
-    !ITEM_KINDS.includes(payload.kind) ||
-    typeof payload.event !== 'string' ||
-    !ITEM_EVENTS.includes(payload.event) ||
+    metadata.event_type !== ITEM_EVENT_TYPE ||
+    (payload.kind !== 'pr' && payload.kind !== 'issue') ||
     typeof payload.number !== 'number'
   ) {
     return null;
   }
 
   return {
-    kind: payload.kind as ItemKind,
-    repo,
-    number: payload.number,
-    title: String(payload.title ?? ''),
-    url: String(payload.url ?? ''),
-    event: payload.event as TrackedItem['event'],
-    ts,
-    threadTs: message.thread_ts && message.thread_ts !== ts ? message.thread_ts : null,
-    replyCount: message.reply_count ?? 0,
+    type: 'item',
+    item: {
+      kind: payload.kind,
+      repo,
+      number: payload.number,
+      title: String(payload.title ?? ''),
+      url: String(payload.url ?? ''),
+      ts,
+    },
   };
 }
 
-async function getOwnBotId(): Promise<string> {
-  const auth = await getSlackClient().auth.test();
+export async function listChannelActivity(channel: string, repo: string): Promise<ChannelActivity> {
+  const slack = getSlackClient();
+  const auth = await slack.auth.test();
   if (!auth.bot_id) {
     throw new Error('auth.test did not return bot_id. A bot token (xoxb-) is required.');
   }
-  return auth.bot_id;
-}
 
-async function listHistoryItems(channel: string, repo: string, botId: string): Promise<TrackedItem[]> {
-  const slack = getSlackClient();
   const oldest = ((Date.now() - HISTORY_LOOKBACK_DAYS * MS_PER_DAY) / 1000).toString();
   const items: TrackedItem[] = [];
+  let lastSummaryTs: string | null = null;
   let cursor: string | undefined;
 
   do {
@@ -183,69 +178,17 @@ async function listHistoryItems(channel: string, repo: string, botId: string): P
       cursor,
     });
     for (const message of page.messages ?? []) {
-      const item = parseTrackedItem(message, botId, repo);
-      if (item) {
-        items.push(item);
+      const parsed = parseOwnMessage(message, auth.bot_id, repo);
+      if (parsed?.type === 'item') {
+        items.push(parsed.item);
+      } else if (parsed?.type === 'summary' && (!lastSummaryTs || Number(parsed.ts) > Number(lastSummaryTs))) {
+        lastSummaryTs = parsed.ts;
       }
     }
     cursor = page.response_metadata?.next_cursor || undefined;
   } while (cursor);
 
-  return items;
-}
-
-async function listReplyItems(channel: string, parentTs: string, repo: string, botId: string): Promise<TrackedItem[]> {
-  const slack = getSlackClient();
-  const items: TrackedItem[] = [];
-  let cursor: string | undefined;
-
-  do {
-    const page = await slack.conversations.replies({
-      channel,
-      ts: parentTs,
-      include_all_metadata: true,
-      limit: PAGE_SIZE,
-      cursor,
-    });
-    for (const message of page.messages ?? []) {
-      const item = parseTrackedItem(message, botId, repo);
-      if (item && item.threadTs !== null) {
-        items.push(item);
-      }
-    }
-    cursor = page.response_metadata?.next_cursor || undefined;
-  } while (cursor);
-
-  return items;
-}
-
-export async function findOpenedThreadTs(
-  channel: string,
-  repo: string,
-  kind: ItemKind,
-  number: number
-): Promise<string | null> {
-  const botId = await getOwnBotId();
-  const items = await listHistoryItems(channel, repo, botId);
-  const opened = items.find(
-    (item) => item.event === 'opened' && item.kind === kind && item.number === number && item.threadTs === null
-  );
-  return opened?.ts ?? null;
-}
-
-// Includes thread replies (not only broadcasted ones), deduplicated by ts
-export async function listTrackedItems(channel: string, repo: string): Promise<TrackedItem[]> {
-  const botId = await getOwnBotId();
-  const historyItems = await listHistoryItems(channel, repo, botId);
-  const itemsByTs = new Map(historyItems.map((item) => [item.ts, item]));
-
-  for (const parent of historyItems.filter((item) => item.threadTs === null && item.replyCount > 0)) {
-    for (const reply of await listReplyItems(channel, parent.ts, repo, botId)) {
-      itemsByTs.set(reply.ts, reply);
-    }
-  }
-
-  return [...itemsByTs.values()];
+  return { items, lastSummaryTs };
 }
 
 // Build PR message blocks

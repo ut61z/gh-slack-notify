@@ -1,11 +1,11 @@
 # gh-slack-notify
 
-A GitHub Action to send PR / Issue / Workflow events to Slack with thread replies and daily summaries.
+A GitHub Action to send PR / Issue / Workflow events to Slack and post daily summaries.
 
 ## Features
 
-- **PR notifications**: Open → Merge/Close with thread replies
-- **Issue notifications**: Open → Close with thread replies
+- **PR notifications**: Posted when a PR is opened or ready for review
+- **Issue notifications**: Posted when an issue is opened
 - **Workflow notifications**: Success / Failure alerts
 - **Daily summary**: Consolidate notifications and clean up channel
 - **Filtering**: Control notifications by labels or Project linkage
@@ -19,10 +19,10 @@ name: Slack Notify
 
 on:
   pull_request:
-    types: [opened, closed]
+    types: [opened, ready_for_review]
   issues:
-    types: [opened, closed]
-
+    types: [opened, ready_for_review]
+    types: [opened]
 jobs:
   notify-pr:
     if: github.event_name == 'pull_request'
@@ -126,9 +126,24 @@ Your Slack App needs these OAuth Scopes:
 
 ## Message Tracking
 
-PR/Issue notifications carry Slack message metadata (`gh_slack_notify_item`). Close/Merge replies and the daily summary find them by reading the last 14 days of channel history, so no state storage is needed.
+Opened notifications carry Slack message metadata (`gh_slack_notify_item`), and each Daily Summary carries `gh_slack_notify_summary`. The summary reads the last 14 days of channel history to find them, so no state storage is needed. `encryption_key` and the `actions: write` permission are no longer required.
 
-`encryption_key` and the `actions: write` permission are no longer required.
+## Closed / Merged
+
+Closed and merged events are not notified individually, so you can drop `closed` from the `pull_request` / `issues` triggers. The summary fetches closed PRs and issues from the GitHub API for the period since the previous summary (24 hours when there is none):
+
+- Merged / Closed PRs: draft PRs are excluded, and the label and base branch filters are applied
+- Closed issues: PRs are excluded, and the label filter is applied
+- The summary job needs these permissions:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+```
+
+The summary deletes the opened notifications it consumed; Daily Summary messages are kept.
 
 ## License
 
