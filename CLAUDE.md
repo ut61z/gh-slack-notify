@@ -21,7 +21,6 @@ GitHub to Slack notification action.
 src/
   index.ts    - Main entry point
   slack.ts    - Slack API client & Block Kit messages
-  state.ts    - State management (JSON + git)
   github.ts   - GitHub GraphQL API
   summary.ts  - Daily summary feature
 dist/

@@ -1,6 +1,12 @@
 import { WebClient } from '@slack/web-api';
 import type { KnownBlock } from '@slack/web-api';
-import { COLORS } from './types.js';
+import type { ChannelActivity, MessageMetadata, TrackedItem } from './types.js';
+
+export const ITEM_EVENT_TYPE = 'gh_slack_notify_item';
+export const SUMMARY_EVENT_TYPE = 'gh_slack_notify_summary';
+const HISTORY_LOOKBACK_DAYS = 14;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const PAGE_SIZE = 200;
 
 let client: WebClient | null = null;
 
@@ -37,38 +43,36 @@ export async function postMessage(
   blocks: KnownBlock[],
   text: string,
   options?: {
-    threadTs?: string;
-    replyBroadcast?: boolean;
     color?: string;
+    metadata?: MessageMetadata;
   }
 ): Promise<string> {
   const slack = getSlackClient();
-  const { threadTs, replyBroadcast, color } = options ?? {};
+  const { color, metadata } = options ?? {};
+  const messageMetadata = metadata
+    ? { event_type: metadata.eventType, event_payload: { ...metadata.payload } }
+    : undefined;
 
   // colorが指定されている場合はattachmentsを使う
-  const baseOptions = color
-    ? {
-        channel,
-        attachments: [{ color, blocks }],
-        text,
-        unfurl_links: false as const,
-        unfurl_media: false as const,
-      }
-    : {
-        channel,
-        blocks,
-        text,
-        unfurl_links: false as const,
-        unfurl_media: false as const,
-      };
-
-  const result = threadTs
-    ? await slack.chat.postMessage({
-        ...baseOptions,
-        thread_ts: threadTs,
-        reply_broadcast: replyBroadcast ?? false,
-      })
-    : await slack.chat.postMessage(baseOptions);
+  const result = await slack.chat.postMessage(
+    color
+      ? {
+          channel,
+          attachments: [{ color, blocks }],
+          text,
+          metadata: messageMetadata,
+          unfurl_links: false,
+          unfurl_media: false,
+        }
+      : {
+          channel,
+          blocks,
+          text,
+          metadata: messageMetadata,
+          unfurl_links: false,
+          unfurl_media: false,
+        }
+  );
 
   if (!result.ok || !result.ts) {
     throw new Error(`Failed to post message: ${result.error}`);
@@ -77,7 +81,6 @@ export async function postMessage(
   return result.ts;
 }
 
-// Delete a message from Slack
 export async function deleteMessage(channel: string, ts: string): Promise<boolean> {
   const slack = getSlackClient();
   try {
@@ -87,9 +90,105 @@ export async function deleteMessage(channel: string, ts: string): Promise<boolea
     });
     return result.ok === true;
   } catch (error) {
+    if (isMessageNotFound(error)) {
+      return true;
+    }
     console.warn(`Failed to delete message ${ts}: ${error}`);
     return false;
   }
+}
+
+function isMessageNotFound(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'data' in error &&
+    typeof error.data === 'object' &&
+    error.data !== null &&
+    'error' in error.data &&
+    error.data.error === 'message_not_found'
+  );
+}
+
+interface SlackMessageLike {
+  ts?: string;
+  bot_id?: string;
+  metadata?: { event_type?: string; event_payload?: unknown };
+}
+
+type ParsedMessage =
+  | { type: 'item'; item: TrackedItem }
+  | { type: 'summary'; ts: string }
+  | null;
+
+function parseOwnMessage(message: SlackMessageLike, botId: string, repo: string): ParsedMessage {
+  const { ts, metadata } = message;
+  if (!ts || message.bot_id !== botId || !metadata) {
+    return null;
+  }
+
+  const payload = metadata.event_payload as Record<string, unknown> | undefined;
+  if (!payload || payload.repo !== repo) {
+    return null;
+  }
+
+  if (metadata.event_type === SUMMARY_EVENT_TYPE) {
+    return { type: 'summary', ts };
+  }
+
+  if (
+    metadata.event_type !== ITEM_EVENT_TYPE ||
+    (payload.kind !== 'pr' && payload.kind !== 'issue') ||
+    typeof payload.number !== 'number'
+  ) {
+    return null;
+  }
+
+  return {
+    type: 'item',
+    item: {
+      kind: payload.kind,
+      repo,
+      number: payload.number,
+      title: String(payload.title ?? ''),
+      url: String(payload.url ?? ''),
+      ts,
+    },
+  };
+}
+
+export async function listChannelActivity(channel: string, repo: string): Promise<ChannelActivity> {
+  const slack = getSlackClient();
+  const auth = await slack.auth.test();
+  if (!auth.bot_id) {
+    throw new Error('auth.test did not return bot_id. A bot token (xoxb-) is required.');
+  }
+
+  const oldest = ((Date.now() - HISTORY_LOOKBACK_DAYS * MS_PER_DAY) / 1000).toString();
+  const items: TrackedItem[] = [];
+  let lastSummaryTs: string | null = null;
+  let cursor: string | undefined;
+
+  do {
+    const page = await slack.conversations.history({
+      channel,
+      oldest,
+      include_all_metadata: true,
+      limit: PAGE_SIZE,
+      cursor,
+    });
+    for (const message of page.messages ?? []) {
+      const parsed = parseOwnMessage(message, auth.bot_id, repo);
+      if (parsed?.type === 'item') {
+        items.push(parsed.item);
+      } else if (parsed?.type === 'summary' && (!lastSummaryTs || Number(parsed.ts) > Number(lastSummaryTs))) {
+        lastSummaryTs = parsed.ts;
+      }
+    }
+    cursor = page.response_metadata?.next_cursor || undefined;
+  } while (cursor);
+
+  return { items, lastSummaryTs };
 }
 
 // Build PR message blocks

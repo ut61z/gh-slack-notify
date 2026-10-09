@@ -1,8 +1,7 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { initSlackClient, postMessage, buildPRBlocks, buildIssueBlocks, buildWorkflowBlocks } from './slack.js';
+import { initSlackClient, postMessage, ITEM_EVENT_TYPE, buildPRBlocks, buildIssueBlocks, buildWorkflowBlocks } from './slack.js';
 import { initGitHubClient, isIssueLinkedToProject, shouldNotifyByLabels, shouldNotifyByBaseBranch } from './github.js';
-import { initArtifactClient, readState, saveState, addPREntry, getPREntry, addIssueEntry, getIssueEntry } from './state.js';
 import { runSummary } from './summary.js';
 import { COLORS, type ActionInputs, type EventType } from './types.js';
 
@@ -55,17 +54,10 @@ async function handlePullRequest(inputs: ActionInputs): Promise<void> {
   }
 
   const action = payload.action as string;
-  const prNumber = pr.number.toString();
-  const isMerged = pr.merged === true;
 
-  // Determine the actual event type
-  let prEvent: 'opened' | 'closed' | 'merged';
-  if (action === 'opened' || action === 'ready_for_review') {
-    prEvent = 'opened';
-  } else if (action === 'closed') {
-    prEvent = isMerged ? 'merged' : 'closed';
-  } else {
-    core.info(`Ignoring PR action: ${action}`);
+  if (action !== 'opened' && action !== 'ready_for_review') {
+    core.info(`Ignoring PR action: ${action} (closed PRs are collected by the summary)`);
+    core.setOutput('notified', 'false');
     return;
   }
 
@@ -91,84 +83,28 @@ async function handlePullRequest(inputs: ActionInputs): Promise<void> {
   const author = pr.user?.login || 'unknown';
   const reviewers = (pr.requested_reviewers || []).map((r: { login: string }) => r.login);
 
-  const state = await readState();
+  const blocks = buildPRBlocks({
+    action: 'opened',
+    title: prTitle,
+    url: prUrl,
+    number: pr.number,
+    repo: repo.repo,
+    author,
+    body: prBody,
+    reviewers,
+  });
 
-  if (prEvent === 'opened') {
-    // Send new message
-    const blocks = buildPRBlocks({
-      action: 'opened',
-      title: prTitle,
-      url: prUrl,
-      number: pr.number,
-      repo: repo.repo,
-      author,
-      body: prBody,
-      reviewers,
-    });
-
-    const messageTs = await postMessage(inputs.slackChannel, blocks, '', {
-      color: COLORS.OPEN,
-    });
-
-    // Save to state
-    addPREntry(state, prNumber, {
-      channel: inputs.slackChannel,
-      message_ts: messageTs,
-      created_at: new Date().toISOString(),
-      event: 'opened',
-      title: prTitle,
-      url: prUrl,
-      repo: repo.repo,
-      author,
-    });
-
-    await saveState(state);
-    core.setOutput('message_ts', messageTs);
-  } else {
-    // Reply to existing thread or send new message
-    const existingEntry = getPREntry(state, prNumber);
-    const threadTs = existingEntry?.message_ts;
-
-    const blocks = buildPRBlocks({
-      action: prEvent,
-      title: prTitle,
-      url: prUrl,
-      number: pr.number,
-      repo: repo.repo,
-      author,
-      reviewers,
-    });
-
-    const color = prEvent === 'merged' ? COLORS.MERGED : COLORS.CLOSED;
-    const messageTs = await postMessage(inputs.slackChannel, blocks, '', {
-      threadTs,
-      replyBroadcast: true,
-      color,
-    });
-
-    // Update state
-    if (existingEntry) {
-      existingEntry.event = prEvent;
-      existingEntry.reply_message_ts = messageTs;
-    } else {
-      addPREntry(state, prNumber, {
-        channel: inputs.slackChannel,
-        message_ts: messageTs,
-        created_at: new Date().toISOString(),
-        event: prEvent,
-        title: prTitle,
-        url: prUrl,
-        repo: repo.repo,
-        author,
-      });
-    }
-
-    await saveState(state);
-    core.setOutput('message_ts', messageTs);
-  }
+  const messageTs = await postMessage(inputs.slackChannel, blocks, '', {
+    color: COLORS.OPEN,
+    metadata: {
+      eventType: ITEM_EVENT_TYPE,
+      payload: { kind: 'pr', repo: `${repo.owner}/${repo.repo}`, number: pr.number, title: prTitle, url: prUrl },
+    },
+  });
+  core.setOutput('message_ts', messageTs);
 
   core.setOutput('notified', 'true');
-  core.info(`PR #${pr.number} ${prEvent} notification sent`);
+  core.info(`PR #${pr.number} opened notification sent`);
 }
 
 // Handle issues events
@@ -181,16 +117,10 @@ async function handleIssue(inputs: ActionInputs): Promise<void> {
   }
 
   const action = payload.action as string;
-  const issueNumber = issue.number.toString();
 
-  // Determine the actual event type
-  let issueEvent: 'opened' | 'closed';
-  if (action === 'opened') {
-    issueEvent = 'opened';
-  } else if (action === 'closed') {
-    issueEvent = 'closed';
-  } else {
-    core.info(`Ignoring issue action: ${action}`);
+  if (action !== 'opened') {
+    core.info(`Ignoring issue action: ${action} (closed issues are collected by the summary)`);
+    core.setOutput('notified', 'false');
     return;
   }
 
@@ -203,7 +133,7 @@ async function handleIssue(inputs: ActionInputs): Promise<void> {
   }
 
   // Check if issue is linked to a project
-  if (inputs.excludeProjectIssues && issueEvent === 'opened') {
+  if (inputs.excludeProjectIssues) {
     const isLinked = await isIssueLinkedToProject(repo.owner, repo.repo, issue.number);
     if (isLinked) {
       core.info('Issue is linked to a project, skipping notification');
@@ -217,80 +147,27 @@ async function handleIssue(inputs: ActionInputs): Promise<void> {
   const issueBody = issue.body || undefined;
   const author = issue.user?.login || 'unknown';
 
-  const state = await readState();
+  const blocks = buildIssueBlocks({
+    action: 'opened',
+    title: issueTitle,
+    url: issueUrl,
+    number: issue.number,
+    repo: repo.repo,
+    author,
+    body: issueBody,
+  });
 
-  if (issueEvent === 'opened') {
-    // Send new message
-    const blocks = buildIssueBlocks({
-      action: 'opened',
-      title: issueTitle,
-      url: issueUrl,
-      number: issue.number,
-      repo: repo.repo,
-      author,
-      body: issueBody,
-    });
-
-    const messageTs = await postMessage(inputs.slackChannel, blocks, '', {
-      color: COLORS.OPEN,
-    });
-
-    // Save to state
-    addIssueEntry(state, issueNumber, {
-      channel: inputs.slackChannel,
-      message_ts: messageTs,
-      created_at: new Date().toISOString(),
-      event: 'opened',
-      title: issueTitle,
-      url: issueUrl,
-      repo: repo.repo,
-      author,
-    });
-
-    await saveState(state);
-    core.setOutput('message_ts', messageTs);
-  } else {
-    // Reply to existing thread or send new message
-    const existingEntry = getIssueEntry(state, issueNumber);
-    const threadTs = existingEntry?.message_ts;
-
-    const blocks = buildIssueBlocks({
-      action: 'closed',
-      title: issueTitle,
-      url: issueUrl,
-      number: issue.number,
-      repo: repo.repo,
-      author,
-    });
-
-    const messageTs = await postMessage(inputs.slackChannel, blocks, '', {
-      threadTs,
-      color: COLORS.CLOSED,
-    });
-
-    // Update state
-    if (existingEntry) {
-      existingEntry.event = 'closed';
-      existingEntry.reply_message_ts = messageTs;
-    } else {
-      addIssueEntry(state, issueNumber, {
-        channel: inputs.slackChannel,
-        message_ts: messageTs,
-        created_at: new Date().toISOString(),
-        event: 'closed',
-        title: issueTitle,
-        url: issueUrl,
-        repo: repo.repo,
-        author,
-      });
-    }
-
-    await saveState(state);
-    core.setOutput('message_ts', messageTs);
-  }
+  const messageTs = await postMessage(inputs.slackChannel, blocks, '', {
+    color: COLORS.OPEN,
+    metadata: {
+      eventType: ITEM_EVENT_TYPE,
+      payload: { kind: 'issue', repo: `${repo.owner}/${repo.repo}`, number: issue.number, title: issueTitle, url: issueUrl },
+    },
+  });
+  core.setOutput('message_ts', messageTs);
 
   core.setOutput('notified', 'true');
-  core.info(`Issue #${issue.number} ${issueEvent} notification sent`);
+  core.info(`Issue #${issue.number} opened notification sent`);
 }
 
 // Handle workflow_run events
@@ -369,7 +246,6 @@ async function main(): Promise<void> {
     // Initialize clients
     initSlackClient(inputs.slackToken);
     initGitHubClient(inputs.githubToken);
-    initArtifactClient(inputs.githubToken);
 
     // Handle event
     switch (inputs.eventType) {
@@ -385,7 +261,8 @@ async function main(): Promise<void> {
       case 'summary':
         await runSummary(
           inputs.slackChannel,
-          `${github.context.repo.owner}/${github.context.repo.repo}`
+          `${github.context.repo.owner}/${github.context.repo.repo}`,
+          inputs
         );
         break;
       default:

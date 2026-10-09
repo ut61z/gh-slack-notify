@@ -1,37 +1,31 @@
 // Event types
 export type EventType = 'pull_request' | 'issues' | 'workflow_run' | 'summary';
 
-// PR entry in state
-export interface PullRequestEntry {
-  channel: string;
-  message_ts: string;
-  reply_message_ts?: string;
-  created_at: string;
-  event: 'opened' | 'closed' | 'merged';
+export type ItemKind = 'pr' | 'issue';
+
+export interface ItemMetadataPayload {
+  kind: ItemKind;
+  repo: string;
+  number: number;
   title: string;
   url: string;
-  repo: string;
-  author: string;
 }
 
-// Issue entry in state
-export interface IssueEntry {
-  channel: string;
-  message_ts: string;
-  reply_message_ts?: string;
-  created_at: string;
-  event: 'opened' | 'closed';
-  title: string;
-  url: string;
+export interface SummaryMetadataPayload {
   repo: string;
-  author: string;
 }
 
-// State file structure
-export interface NotificationState {
-  last_summary_at?: string;
-  pull_requests: Record<string, PullRequestEntry>;
-  issues: Record<string, IssueEntry>;
+export type MessageMetadata =
+  | { eventType: 'gh_slack_notify_item'; payload: ItemMetadataPayload }
+  | { eventType: 'gh_slack_notify_summary'; payload: SummaryMetadataPayload };
+
+export interface TrackedItem extends ItemMetadataPayload {
+  ts: string;
+}
+
+export interface ChannelActivity {
+  items: TrackedItem[];
+  lastSummaryTs: string | null;
 }
 
 // Action inputs

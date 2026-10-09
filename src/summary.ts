@@ -1,27 +1,36 @@
 import type { KnownBlock } from '@slack/web-api';
 import * as core from '@actions/core';
+import { postMessage, deleteMessage, listChannelActivity, SUMMARY_EVENT_TYPE } from './slack.js';
 import {
-  readState,
-  saveState,
-  clearEntries,
-  updateLastSummaryAt,
-} from './state.js';
-import { postMessage, deleteMessage } from './slack.js';
-import type { NotificationState, PullRequestEntry, IssueEntry } from './types.js';
+  listClosedPullRequests,
+  listClosedIssues,
+  shouldNotifyByLabels,
+  shouldNotifyByBaseBranch,
+} from './github.js';
+import type { ActionInputs, TrackedItem } from './types.js';
+
+export type SummaryFilters = Pick<ActionInputs, 'labelFilterMode' | 'filterLabels' | 'baseBranches'>;
+
+interface SummaryEntry {
+  number: number;
+  title: string;
+  url: string;
+}
 
 interface SummaryData {
   prs: {
-    opened: Array<{ number: string; entry: PullRequestEntry }>;
-    merged: Array<{ number: string; entry: PullRequestEntry }>;
-    closed: Array<{ number: string; entry: PullRequestEntry }>;
+    opened: SummaryEntry[];
+    merged: SummaryEntry[];
+    closed: SummaryEntry[];
   };
   issues: {
-    opened: Array<{ number: string; entry: IssueEntry }>;
-    closed: Array<{ number: string; entry: IssueEntry }>;
+    opened: SummaryEntry[];
+    closed: SummaryEntry[];
   };
 }
 
 const MAX_SECTION_TEXT_LENGTH = 3000;
+const DEFAULT_SUMMARY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function pushSummarySection(
   blocks: KnownBlock[],
@@ -63,51 +72,12 @@ function pushSummarySection(
   });
 }
 
-// Collect data for summary since last summary
-function collectSummaryData(state: NotificationState): SummaryData {
-  const lastSummaryAt = state.last_summary_at
-    ? new Date(state.last_summary_at)
-    : new Date(0); // If no last summary, include everything
+function uniqueByNumber(entries: SummaryEntry[]): SummaryEntry[] {
+  return [...new Map(entries.map((entry) => [entry.number, entry])).values()];
+}
 
-  const data: SummaryData = {
-    prs: { opened: [], merged: [], closed: [] },
-    issues: { opened: [], closed: [] },
-  };
-
-  // Collect PRs
-  for (const [number, entry] of Object.entries(state.pull_requests)) {
-    const createdAt = new Date(entry.created_at);
-    if (createdAt >= lastSummaryAt) {
-      switch (entry.event) {
-        case 'opened':
-          data.prs.opened.push({ number, entry });
-          break;
-        case 'merged':
-          data.prs.merged.push({ number, entry });
-          break;
-        case 'closed':
-          data.prs.closed.push({ number, entry });
-          break;
-      }
-    }
-  }
-
-  // Collect Issues
-  for (const [number, entry] of Object.entries(state.issues)) {
-    const createdAt = new Date(entry.created_at);
-    if (createdAt >= lastSummaryAt) {
-      switch (entry.event) {
-        case 'opened':
-          data.issues.opened.push({ number, entry });
-          break;
-        case 'closed':
-          data.issues.closed.push({ number, entry });
-          break;
-      }
-    }
-  }
-
-  return data;
+function toSummaryLine(entry: SummaryEntry): string {
+  return `• <${entry.url}|#${entry.number}: ${entry.title}>`;
 }
 
 // Build summary message blocks
@@ -128,45 +98,24 @@ function buildSummaryBlocks(data: SummaryData, repository: string): KnownBlock[]
     },
   ];
 
-  // PR sections
   const hasPRs =
     data.prs.opened.length > 0 ||
     data.prs.merged.length > 0 ||
     data.prs.closed.length > 0;
 
   if (hasPRs) {
-    const prOpenedLines = data.prs.opened.map(
-      ({ number, entry }) => `• <${entry.url}|#${number}: ${entry.title}>`
-    );
-    pushSummarySection(blocks, 'Pull Requests / Opened', prOpenedLines);
-
-    const prClosedLines = data.prs.closed.map(
-      ({ number, entry }) => `• <${entry.url}|#${number}: ${entry.title}>`
-    );
-    pushSummarySection(blocks, 'Pull Requests / Closed', prClosedLines);
-
-    const prMergedLines = data.prs.merged.map(
-      ({ number, entry }) => `• <${entry.url}|#${number}: ${entry.title}>`
-    );
-    pushSummarySection(blocks, 'Pull Requests / Merged', prMergedLines);
+    pushSummarySection(blocks, 'Pull Requests / Opened', data.prs.opened.map(toSummaryLine));
+    pushSummarySection(blocks, 'Pull Requests / Closed', data.prs.closed.map(toSummaryLine));
+    pushSummarySection(blocks, 'Pull Requests / Merged', data.prs.merged.map(toSummaryLine));
   }
 
-  // Issue sections
   const hasIssues = data.issues.opened.length > 0 || data.issues.closed.length > 0;
 
   if (hasIssues) {
-    const issueOpenedLines = data.issues.opened.map(
-      ({ number, entry }) => `• <${entry.url}|#${number}: ${entry.title}>`
-    );
-    pushSummarySection(blocks, 'Issues / Opened', issueOpenedLines);
-
-    const issueClosedLines = data.issues.closed.map(
-      ({ number, entry }) => `• <${entry.url}|#${number}: ${entry.title}>`
-    );
-    pushSummarySection(blocks, 'Issues / Closed', issueClosedLines);
+    pushSummarySection(blocks, 'Issues / Opened', data.issues.opened.map(toSummaryLine));
+    pushSummarySection(blocks, 'Issues / Closed', data.issues.closed.map(toSummaryLine));
   }
 
-  // No activity
   if (!hasPRs && !hasIssues) {
     blocks.push({
       type: 'section',
@@ -180,76 +129,66 @@ function buildSummaryBlocks(data: SummaryData, repository: string): KnownBlock[]
   return blocks;
 }
 
-// Delete all tracked messages
-async function deleteTrackedMessages(
-  state: NotificationState,
-  channel: string
-): Promise<void> {
-  const messagesToDelete: Array<{ type: string; number: string; ts: string; isReply?: boolean }> = [];
+async function deleteTrackedItems(items: TrackedItem[], channel: string): Promise<void> {
+  core.info(`Deleting ${items.length} messages...`);
 
-  // Collect PR messages
-  for (const [number, entry] of Object.entries(state.pull_requests)) {
-    if (entry.channel === channel) {
-      if (entry.message_ts) {
-        messagesToDelete.push({ type: 'PR', number, ts: entry.message_ts });
-      }
-      if (entry.reply_message_ts) {
-        messagesToDelete.push({ type: 'PR', number, ts: entry.reply_message_ts, isReply: true });
-      }
-    }
-  }
-
-  // Collect Issue messages
-  for (const [number, entry] of Object.entries(state.issues)) {
-    if (entry.channel === channel) {
-      if (entry.message_ts) {
-        messagesToDelete.push({ type: 'Issue', number, ts: entry.message_ts });
-      }
-      if (entry.reply_message_ts) {
-        messagesToDelete.push({ type: 'Issue', number, ts: entry.reply_message_ts, isReply: true });
-      }
-    }
-  }
-
-  core.info(`Deleting ${messagesToDelete.length} messages...`);
-
-  for (const msg of messagesToDelete) {
-    const success = await deleteMessage(channel, msg.ts);
-    const msgType = msg.isReply ? `${msg.type} reply` : msg.type;
-    if (success) {
-      core.info(`Deleted ${msgType} #${msg.number} message`);
+  for (const item of items) {
+    const label = `${item.kind === 'pr' ? 'PR' : 'Issue'} #${item.number}`;
+    if (await deleteMessage(channel, item.ts)) {
+      core.info(`Deleted ${label} message`);
     } else {
-      core.warning(`Failed to delete ${msgType} #${msg.number} message`);
+      core.warning(`Failed to delete ${label} message`);
     }
   }
 }
 
-// Run the daily summary
-export async function runSummary(channel: string, repository: string): Promise<void> {
+export async function runSummary(
+  channel: string,
+  repository: string,
+  filters: SummaryFilters
+): Promise<void> {
   core.info('Running daily summary...');
 
-  // 1. Read state
-  const state = await readState();
+  const [owner, repo] = repository.split('/') as [string, string];
+  const { items, lastSummaryTs } = await listChannelActivity(channel, repository);
+  const since = lastSummaryTs
+    ? new Date(Number(lastSummaryTs) * 1000)
+    : new Date(Date.now() - DEFAULT_SUMMARY_WINDOW_MS);
 
-  // 2. Collect summary data
-  const data = collectSummaryData(state);
+  const closedPulls = (await listClosedPullRequests(owner, repo, since)).filter(
+    (pr) =>
+      !pr.draft &&
+      shouldNotifyByLabels(pr.labels, filters.labelFilterMode, filters.filterLabels) &&
+      shouldNotifyByBaseBranch(pr.baseBranch, filters.baseBranches)
+  );
+  const closedIssues = (await listClosedIssues(owner, repo, since)).filter((issue) =>
+    shouldNotifyByLabels(issue.labels, filters.labelFilterMode, filters.filterLabels)
+  );
 
-  // 3. Build and send summary message
-  const blocks = buildSummaryBlocks(data, repository);
+  const closedPullNumbers = new Set(closedPulls.map((pr) => pr.number));
+  const closedIssueNumbers = new Set(closedIssues.map((issue) => issue.number));
+  const openedPulls = items.filter((item) => item.kind === 'pr' && !closedPullNumbers.has(item.number));
+  const openedIssues = items.filter((item) => item.kind === 'issue' && !closedIssueNumbers.has(item.number));
+
+  const data: SummaryData = {
+    prs: {
+      opened: uniqueByNumber(openedPulls),
+      merged: closedPulls.filter((pr) => pr.merged),
+      closed: closedPulls.filter((pr) => !pr.merged),
+    },
+    issues: {
+      opened: uniqueByNumber(openedIssues),
+      closed: closedIssues,
+    },
+  };
+
   const text = repository ? `Daily Summary (${repository})` : 'Daily Summary';
-
-  await postMessage(channel, blocks, text);
+  await postMessage(channel, buildSummaryBlocks(data, repository), text, {
+    metadata: { eventType: SUMMARY_EVENT_TYPE, payload: { repo: repository } },
+  });
   core.info('Summary posted to Slack');
 
-  // 4. Delete tracked messages
-  await deleteTrackedMessages(state, channel);
-
-  // 5. Clean up state
-  clearEntries(state);
-  updateLastSummaryAt(state);
-
-  // 6. Save state (skipMerge=trueでクリア後の状態を上書き)
-  await saveState(state, true);
+  await deleteTrackedItems(items, channel);
 
   core.info('Daily summary completed');
 }

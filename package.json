@@ -11,7 +11,6 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/adm-zip": "^0.5.8",
     "@types/bun": "latest",
     "@types/node": "^25.5.0"
   },
@@ -19,11 +18,9 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@actions/artifact": "^6.2.1",
     "@actions/core": "^3.0.1",
     "@actions/github": "^9.1.1",
     "@octokit/graphql": "^9.0.5",
-    "@slack/web-api": "^7.18.0",
-    "adm-zip": "^0.6.1"
+    "@slack/web-api": "^7.18.0"
   }
 }
