@@ -5,6 +5,10 @@ import { initGitHubClient, isIssueLinkedToProject, shouldNotifyByLabels, shouldN
 import { runSummary } from './summary.js';
 import { COLORS, type ActionInputs, type EventType } from './types.js';
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Parse inputs from environment variables
 function getInputs(): ActionInputs {
   const eventType = (process.env.INPUT_EVENT_TYPE || '') as EventType;
@@ -134,6 +138,10 @@ async function handleIssue(inputs: ActionInputs): Promise<void> {
 
   // Check if issue is linked to a project
   if (inputs.excludeProjectIssues) {
+    // Project linkage right after the issue is opened may not be reflected yet
+    const PROJECT_LINK_DELAY_MS = 3000;
+    core.info(`Waiting ${PROJECT_LINK_DELAY_MS}ms for Project linkage to be reflected...`);
+    await sleep(PROJECT_LINK_DELAY_MS);
     const isLinked = await isIssueLinkedToProject(repo.owner, repo.repo, issue.number);
     if (isLinked) {
       core.info('Issue is linked to a project, skipping notification');

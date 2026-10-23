@@ -4,12 +4,20 @@ import { postMessage, deleteMessage, listChannelActivity, SUMMARY_EVENT_TYPE } f
 import {
   listClosedPullRequests,
   listClosedIssues,
+  listOpenedPullRequests,
+  listOpenedIssues,
+  isIssueLinkedToProject,
   shouldNotifyByLabels,
   shouldNotifyByBaseBranch,
+  type PullRequestItem,
+  type RepoItem,
 } from './github.js';
 import type { ActionInputs, TrackedItem } from './types.js';
 
-export type SummaryFilters = Pick<ActionInputs, 'labelFilterMode' | 'filterLabels' | 'baseBranches'>;
+export type SummaryFilters = Pick<
+  ActionInputs,
+  'labelFilterMode' | 'filterLabels' | 'baseBranches' | 'excludeProjectIssues'
+>;
 
 interface SummaryEntry {
   number: number;
@@ -129,6 +137,25 @@ function buildSummaryBlocks(data: SummaryData, repository: string): KnownBlock[]
   return blocks;
 }
 
+async function excludeProjectIssues(
+  issues: RepoItem[],
+  owner: string,
+  repo: string,
+  enabled: boolean
+): Promise<RepoItem[]> {
+  if (!enabled) {
+    return issues;
+  }
+
+  const kept: RepoItem[] = [];
+  for (const issue of issues) {
+    if (!(await isIssueLinkedToProject(owner, repo, issue.number))) {
+      kept.push(issue);
+    }
+  }
+  return kept;
+}
+
 async function deleteTrackedItems(items: TrackedItem[], channel: string): Promise<void> {
   core.info(`Deleting ${items.length} messages...`);
 
@@ -155,29 +182,36 @@ export async function runSummary(
     ? new Date(Number(lastSummaryTs) * 1000)
     : new Date(Date.now() - DEFAULT_SUMMARY_WINDOW_MS);
 
-  const closedPulls = (await listClosedPullRequests(owner, repo, since)).filter(
-    (pr) =>
-      !pr.draft &&
-      shouldNotifyByLabels(pr.labels, filters.labelFilterMode, filters.filterLabels) &&
-      shouldNotifyByBaseBranch(pr.baseBranch, filters.baseBranches)
-  );
-  const closedIssues = (await listClosedIssues(owner, repo, since)).filter((issue) =>
-    shouldNotifyByLabels(issue.labels, filters.labelFilterMode, filters.filterLabels)
+  const isNotifiablePull = (pr: PullRequestItem) =>
+    !pr.draft &&
+    shouldNotifyByLabels(pr.labels, filters.labelFilterMode, filters.filterLabels) &&
+    shouldNotifyByBaseBranch(pr.baseBranch, filters.baseBranches);
+  const isNotifiableIssue = (issue: RepoItem) =>
+    shouldNotifyByLabels(issue.labels, filters.labelFilterMode, filters.filterLabels);
+
+  const closedPulls = (await listClosedPullRequests(owner, repo, since)).filter(isNotifiablePull);
+  const closedIssues = (await listClosedIssues(owner, repo, since)).filter(isNotifiableIssue);
+  const newPulls = (await listOpenedPullRequests(owner, repo, since)).filter(isNotifiablePull);
+  const newIssues = await excludeProjectIssues(
+    (await listOpenedIssues(owner, repo, since)).filter(isNotifiableIssue),
+    owner,
+    repo,
+    filters.excludeProjectIssues
   );
 
   const closedPullNumbers = new Set(closedPulls.map((pr) => pr.number));
   const closedIssueNumbers = new Set(closedIssues.map((issue) => issue.number));
-  const openedPulls = items.filter((item) => item.kind === 'pr' && !closedPullNumbers.has(item.number));
-  const openedIssues = items.filter((item) => item.kind === 'issue' && !closedIssueNumbers.has(item.number));
+  const notifiedPulls = items.filter((item) => item.kind === 'pr' && !closedPullNumbers.has(item.number));
+  const notifiedIssues = items.filter((item) => item.kind === 'issue' && !closedIssueNumbers.has(item.number));
 
   const data: SummaryData = {
     prs: {
-      opened: uniqueByNumber(openedPulls),
+      opened: uniqueByNumber([...notifiedPulls, ...newPulls]),
       merged: closedPulls.filter((pr) => pr.merged),
       closed: closedPulls.filter((pr) => !pr.merged),
     },
     issues: {
-      opened: uniqueByNumber(openedIssues),
+      opened: uniqueByNumber([...notifiedIssues, ...newIssues]),
       closed: closedIssues,
     },
   };

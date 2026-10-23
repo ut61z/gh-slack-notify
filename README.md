@@ -130,10 +130,11 @@ Opened notifications carry Slack message metadata (`gh_slack_notify_item`), and 
 
 ## Closed / Merged
 
-Closed and merged events are not notified individually, so you can drop `closed` from the `pull_request` / `issues` triggers. The summary fetches closed PRs and issues from the GitHub API for the period since the previous summary (24 hours when there is none):
+Closed and merged events are not notified individually, so you can drop `closed` from the `pull_request` / `issues` triggers. The summary fetches PRs and issues from the GitHub API for the period since the previous summary (24 hours when there is none):
 
+- Opened PRs / issues: open items created in the period, merged with the opened notifications found in the channel (deduplicated by number)
 - Merged / Closed PRs: draft PRs are excluded, and the label and base branch filters are applied
-- Closed issues: PRs are excluded, and the label filter is applied
+- Opened / Closed issues: PRs are excluded, and the label filter is applied (`exclude_project_issues` also applies to opened issues)
 - The summary job needs these permissions:
 
 ```yaml
@@ -144,6 +145,15 @@ permissions:
 ```
 
 The summary deletes the opened notifications it consumed; Daily Summary messages are kept.
+
+Give the summary job the same filter inputs (`label_filter_mode`, `filter_labels`, `base_branches`, `exclude_project_issues`) as the notification jobs, otherwise the Opened section diverges from what was notified.
+
+## Summary-only Operation
+
+You can run only the summary job without the `pull_request` / `issues` notification jobs. Opened, merged and closed items are all collected from the GitHub API. Note:
+
+- PRs created as drafts and later marked ready for review are not listed as opened (they are only caught by the `ready_for_review` notification)
+- `chat:delete` is not used since there are no notifications to delete
 
 ## License
 

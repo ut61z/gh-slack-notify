@@ -7,14 +7,26 @@ import {
   ITEM_EVENT_TYPE,
   SUMMARY_EVENT_TYPE,
 } from './slack.js';
-import { initGitHubClient, getRestClient, listClosedPullRequests, listClosedIssues } from './github.js';
+import {
+  initGitHubClient,
+  getRestClient,
+  listClosedPullRequests,
+  listClosedIssues,
+  listOpenedPullRequests,
+  listOpenedIssues,
+} from './github.js';
 import { runSummary, type SummaryFilters } from './summary.js';
 import type { ItemMetadataPayload } from './types.js';
 
 const CHANNEL = 'C123';
 const REPO = 'owner/repo';
 const BOT_ID = 'B_SELF';
-const NO_FILTERS: SummaryFilters = { labelFilterMode: '', filterLabels: [], baseBranches: ['all'] };
+const NO_FILTERS: SummaryFilters = {
+  labelFilterMode: '',
+  filterLabels: [],
+  baseBranches: ['all'],
+  excludeProjectIssues: false,
+};
 
 function tagged(ts: string, payload: Partial<ItemMetadataPayload>, extra: Record<string, unknown> = {}) {
   return {
@@ -46,6 +58,14 @@ function pull(number: number, overrides: Record<string, unknown> = {}) {
     closed_at: closedAt,
     ...overrides,
   };
+}
+
+function openPull(number: number, overrides: Record<string, unknown> = {}) {
+  return pull(number, { merged_at: null, closed_at: null, created_at: new Date().toISOString(), ...overrides });
+}
+
+function openIssue(number: number, overrides: Record<string, unknown> = {}) {
+  return issue(number, { closed_at: null, created_at: new Date().toISOString(), ...overrides });
 }
 
 function issue(number: number, overrides: Record<string, unknown> = {}) {
@@ -90,11 +110,20 @@ function setupSlack(options: {
   return { history, del, post };
 }
 
-function setupGitHub(options: { pulls?: unknown[][]; issues?: unknown[][] }) {
+function setupGitHub(options: {
+  pulls?: unknown[][];
+  issues?: unknown[][];
+  openPulls?: unknown[][];
+  openIssues?: unknown[][];
+}) {
   initGitHubClient('token');
   const rest = getRestClient().rest;
-  const pullsList = mock(async ({ page }: { page: number }) => ({ data: options.pulls?.[page - 1] ?? [] }));
-  const issuesList = mock(async ({ page }: { page: number; since?: string }) => ({ data: options.issues?.[page - 1] ?? [] }));
+  const pullsList = mock(async ({ page, state }: { page: number; state: string }) => ({
+    data: (state === 'open' ? options.openPulls : options.pulls)?.[page - 1] ?? [],
+  }));
+  const issuesList = mock(async ({ page, state }: { page: number; state: string; since?: string }) => ({
+    data: (state === 'open' ? options.openIssues : options.issues)?.[page - 1] ?? [],
+  }));
   Object.assign(rest.pulls, { list: pullsList });
   Object.assign(rest.issues, { listForRepo: issuesList });
   return { pullsList, issuesList };
@@ -195,6 +224,32 @@ describe('listClosedPullRequests / listClosedIssues', () => {
   });
 });
 
+describe('listOpenedPullRequests / listOpenedIssues', () => {
+  const since = new Date(Date.now() - 60 * 60 * 1000);
+  const beforeSince = new Date(since.getTime() - 1000).toISOString();
+
+  test('created_atがsinceより古くなったら打ち切る', async () => {
+    const github = setupGitHub({
+      openPulls: [[openPull(3), openPull(2, { created_at: beforeSince }), openPull(1)]],
+    });
+
+    const pulls = await listOpenedPullRequests('owner', 'repo', since);
+
+    expect(pulls.map((p) => p.number)).toEqual([3]);
+    expect(github.pullsList.mock.calls[0]![0]).toMatchObject({ state: 'open', sort: 'created' });
+  });
+
+  test('issueはPRを除外し、created_atがsince未満のものも除外する', async () => {
+    setupGitHub({
+      openIssues: [[openIssue(1), openIssue(2, { pull_request: {} }), openIssue(3, { created_at: beforeSince })]],
+    });
+
+    const issues = await listOpenedIssues('owner', 'repo', since);
+
+    expect(issues.map((i) => i.number)).toEqual([1]);
+  });
+});
+
 describe('runSummary', () => {
   function postedText(slack: FakeSlack): string {
     const blocks = slack.post.mock.calls[0]![0].blocks as Array<{ text?: { text: string } }>;
@@ -226,6 +281,36 @@ describe('runSummary', () => {
     expect(text).not.toContain('#1: feat');
   });
 
+  test('個別通知がなくてもGitHubからOpenedを集め、slackのitemと番号で重複を除く', async () => {
+    const slack = setupSlack({ historyPages: [[tagged('100.0', { number: 2, title: 'notified' })]] });
+    setupGitHub({
+      openPulls: [[openPull(3), openPull(2)]],
+      openIssues: [[openIssue(7)]],
+    });
+
+    await runSummary(CHANNEL, REPO, NO_FILTERS);
+
+    const text = postedText(slack);
+    expect(text).toContain('#3: pr 3');
+    expect(text).toContain('Issues / Opened*\n• <https://github.com/owner/repo/issues/7|#7: issue 7>');
+    expect(text.match(/#2: /g)).toHaveLength(1);
+  });
+
+  test('exclude_project_issuesが有効ならProject紐付きのOpened issueを除外する', async () => {
+    const slack = setupSlack({ historyPages: [[]] });
+    const graphql = mock(async (_query: string, { number }: { number: number }) => ({
+      repository: { issue: { projectItems: { totalCount: number === 1 ? 1 : 0 } } },
+    }));
+    mock.module('@octokit/graphql', () => ({ graphql: { defaults: () => graphql } }));
+    setupGitHub({ openIssues: [[openIssue(1), openIssue(2)]] });
+
+    await runSummary(CHANNEL, REPO, { ...NO_FILTERS, excludeProjectIssues: true });
+
+    const text = postedText(slack);
+    expect(text).toContain('#2: issue 2');
+    expect(text).not.toContain('#1: issue 1');
+  });
+
   test('draft・labelフィルタ・base branchフィルタで除外する', async () => {
     const slack = setupSlack({ historyPages: [[]] });
     setupGitHub({
@@ -236,14 +321,21 @@ describe('runSummary', () => {
         pull(4),
       ]],
       issues: [[issue(5, { labels: [{ name: 'skip' }] }), issue(6)]],
+      openPulls: [[openPull(11, { draft: true }), openPull(12, { base: { ref: 'develop' } })]],
+      openIssues: [[openIssue(13, { labels: [{ name: 'skip' }] })]],
     });
 
-    await runSummary(CHANNEL, REPO, { labelFilterMode: 'blacklist', filterLabels: ['skip'], baseBranches: ['main'] });
+    await runSummary(CHANNEL, REPO, {
+      labelFilterMode: 'blacklist',
+      filterLabels: ['skip'],
+      baseBranches: ['main'],
+      excludeProjectIssues: false,
+    });
 
     const text = postedText(slack);
     expect(text).toContain('#4: pr 4');
     expect(text).toContain('#6: issue 6');
-    for (const excluded of ['#1:', '#2:', '#3:', '#5:']) {
+    for (const excluded of ['#1:', '#2:', '#3:', '#5:', '#11:', '#12:', '#13:']) {
       expect(text).not.toContain(excluded);
     }
   });
