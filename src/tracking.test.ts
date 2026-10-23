@@ -61,7 +61,19 @@ function pull(number: number, overrides: Record<string, unknown> = {}) {
 }
 
 function openPull(number: number, overrides: Record<string, unknown> = {}) {
-  return pull(number, { merged_at: null, closed_at: null, created_at: new Date().toISOString(), ...overrides });
+  const now = new Date().toISOString();
+  return {
+    number,
+    title: `pr ${number}`,
+    url: `https://github.com/${REPO}/pull/${number}`,
+    isDraft: false,
+    createdAt: now,
+    updatedAt: now,
+    baseRefName: 'main',
+    labels: { nodes: [] },
+    timelineItems: { nodes: [] },
+    ...overrides,
+  };
 }
 
 function openIssue(number: number, overrides: Record<string, unknown> = {}) {
@@ -115,19 +127,44 @@ function setupGitHub(options: {
   issues?: unknown[][];
   openPulls?: unknown[][];
   openIssues?: unknown[][];
+  projectLinkedIssues?: number[];
 }) {
+  const graphql = mock(async (query: string, variables: Record<string, unknown>) => {
+    if (query.includes('pullRequests')) {
+      const index = variables.cursor ? Number(variables.cursor) : 0;
+      const pages = options.openPulls ?? [[]];
+      const hasNextPage = index + 1 < pages.length;
+      return {
+        repository: {
+          pullRequests: {
+            pageInfo: { hasNextPage, endCursor: hasNextPage ? String(index + 1) : null },
+            nodes: pages[index] ?? [],
+          },
+        },
+      };
+    }
+    const linked = options.projectLinkedIssues?.includes(variables.number as number);
+    return { repository: { issue: { projectItems: { totalCount: linked ? 1 : 0 } } } };
+  });
+  graphqlHandler = graphql;
   initGitHubClient('token');
   const rest = getRestClient().rest;
   const pullsList = mock(async ({ page, state }: { page: number; state: string }) => ({
-    data: (state === 'open' ? options.openPulls : options.pulls)?.[page - 1] ?? [],
+    data: state === 'closed' ? (options.pulls?.[page - 1] ?? []) : [],
   }));
   const issuesList = mock(async ({ page, state }: { page: number; state: string; since?: string }) => ({
     data: (state === 'open' ? options.openIssues : options.issues)?.[page - 1] ?? [],
   }));
   Object.assign(rest.pulls, { list: pullsList });
   Object.assign(rest.issues, { listForRepo: issuesList });
-  return { pullsList, issuesList };
+  return { pullsList, issuesList, graphql };
 }
+
+type GraphQLHandler = (query: string, variables: Record<string, unknown>) => Promise<unknown>;
+let graphqlHandler: GraphQLHandler = async () => ({});
+mock.module('@octokit/graphql', () => ({
+  graphql: { defaults: () => (query: string, variables: Record<string, unknown>) => graphqlHandler(query, variables) },
+}));
 
 const messageNotFound = { data: { error: 'message_not_found' } };
 
@@ -228,15 +265,43 @@ describe('listOpenedPullRequests / listOpenedIssues', () => {
   const since = new Date(Date.now() - 60 * 60 * 1000);
   const beforeSince = new Date(since.getTime() - 1000).toISOString();
 
-  test('created_atがsinceより古くなったら打ち切る', async () => {
+  test('updatedAtがsinceより古くなったら打ち切り、作成がsince未満のものは除外する', async () => {
     const github = setupGitHub({
-      openPulls: [[openPull(3), openPull(2, { created_at: beforeSince }), openPull(1)]],
+      openPulls: [[
+        openPull(3),
+        openPull(2, { createdAt: beforeSince }),
+        openPull(1, { createdAt: beforeSince, updatedAt: beforeSince }),
+        openPull(0),
+      ]],
     });
 
     const pulls = await listOpenedPullRequests('owner', 'repo', since);
 
     expect(pulls.map((p) => p.number)).toEqual([3]);
-    expect(github.pullsList.mock.calls[0]![0]).toMatchObject({ state: 'open', sort: 'created' });
+    expect(github.graphql).toHaveBeenCalledTimes(1);
+  });
+
+  test('since以前に作られたdraftでも、since以降にready for reviewになったら含める', async () => {
+    const readyAt = new Date().toISOString();
+    setupGitHub({
+      openPulls: [[
+        openPull(2, { createdAt: beforeSince, timelineItems: { nodes: [{ createdAt: readyAt }] } }),
+        openPull(1, { timelineItems: { nodes: [{ createdAt: beforeSince }] } }),
+      ]],
+    });
+
+    const pulls = await listOpenedPullRequests('owner', 'repo', since);
+
+    expect(pulls.map((p) => p.number)).toEqual([2]);
+  });
+
+  test('次のページがあればcursorで続きを取る', async () => {
+    const github = setupGitHub({ openPulls: [[openPull(2)], [openPull(1)]] });
+
+    const pulls = await listOpenedPullRequests('owner', 'repo', since);
+
+    expect(pulls.map((p) => p.number)).toEqual([2, 1]);
+    expect(github.graphql.mock.calls[1]![1]).toMatchObject({ cursor: '1' });
   });
 
   test('issueはPRを除外し、created_atがsince未満のものも除外する', async () => {
@@ -298,11 +363,7 @@ describe('runSummary', () => {
 
   test('exclude_project_issuesが有効ならProject紐付きのOpened issueを除外する', async () => {
     const slack = setupSlack({ historyPages: [[]] });
-    const graphql = mock(async (_query: string, { number }: { number: number }) => ({
-      repository: { issue: { projectItems: { totalCount: number === 1 ? 1 : 0 } } },
-    }));
-    mock.module('@octokit/graphql', () => ({ graphql: { defaults: () => graphql } }));
-    setupGitHub({ openIssues: [[openIssue(1), openIssue(2)]] });
+    setupGitHub({ openIssues: [[openIssue(1), openIssue(2)]], projectLinkedIssues: [1] });
 
     await runSummary(CHANNEL, REPO, { ...NO_FILTERS, excludeProjectIssues: true });
 
@@ -321,7 +382,7 @@ describe('runSummary', () => {
         pull(4),
       ]],
       issues: [[issue(5, { labels: [{ name: 'skip' }] }), issue(6)]],
-      openPulls: [[openPull(11, { draft: true }), openPull(12, { base: { ref: 'develop' } })]],
+      openPulls: [[openPull(11, { isDraft: true }), openPull(12, { baseRefName: 'develop' })]],
       openIssues: [[openIssue(13, { labels: [{ name: 'skip' }] })]],
     });
 

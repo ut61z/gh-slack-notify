@@ -43574,32 +43574,51 @@ async function listClosedIssues(owner, repo, since) {
 }
 async function listOpenedPullRequests(owner, repo, since) {
   const pulls = [];
-  for (let page = 1;; page++) {
-    const { data } = await getRestClient().rest.pulls.list({
-      owner,
-      repo,
-      state: "open",
-      sort: "created",
-      direction: "desc",
-      per_page: PAGE_SIZE2,
-      page
-    });
-    for (const pr of data) {
-      if (new Date(pr.created_at) < since) {
+  let cursor = null;
+  while (true) {
+    const response = await getGraphQLClient()(`
+      query($owner: String!, $repo: String!, $cursor: String) {
+        repository(owner: $owner, name: $repo) {
+          pullRequests(states: OPEN, first: ${PAGE_SIZE2}, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              number
+              title
+              url
+              isDraft
+              createdAt
+              updatedAt
+              baseRefName
+              labels(first: 100) { nodes { name } }
+              timelineItems(itemTypes: [READY_FOR_REVIEW_EVENT], last: 1) {
+                nodes { ... on ReadyForReviewEvent { createdAt } }
+              }
+            }
+          }
+        }
+      }
+    `, { owner, repo, cursor });
+    const { pageInfo, nodes } = response.repository.pullRequests;
+    for (const pr of nodes) {
+      if (new Date(pr.updatedAt) < since) {
         return pulls;
       }
-      pulls.push({
-        number: pr.number,
-        title: pr.title,
-        url: pr.html_url,
-        labels: labelNames(pr.labels),
-        draft: pr.draft === true,
-        baseBranch: pr.base.ref
-      });
+      const reviewableAt = pr.timelineItems.nodes[0]?.createdAt ?? pr.createdAt;
+      if (new Date(reviewableAt) >= since) {
+        pulls.push({
+          number: pr.number,
+          title: pr.title,
+          url: pr.url,
+          labels: pr.labels.nodes.map((label) => label.name),
+          draft: pr.isDraft,
+          baseBranch: pr.baseRefName
+        });
+      }
     }
-    if (data.length < PAGE_SIZE2) {
+    if (!pageInfo.hasNextPage) {
       return pulls;
     }
+    cursor = pageInfo.endCursor;
   }
 }
 async function listOpenedIssues(owner, repo, since) {
