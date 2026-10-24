@@ -1,11 +1,11 @@
 # gh-slack-notify
 
-A GitHub Action to send PR / Issue / Workflow events to Slack with thread replies and daily summaries.
+A GitHub Action to send PR / Issue / Workflow events to Slack and post daily summaries.
 
 ## Features
 
-- **PR notifications**: Open → Merge/Close with thread replies
-- **Issue notifications**: Open → Close with thread replies
+- **PR notifications**: Posted when a PR is opened or ready for review
+- **Issue notifications**: Posted when an issue is opened
 - **Workflow notifications**: Success / Failure alerts
 - **Daily summary**: Consolidate notifications and clean up channel
 - **Filtering**: Control notifications by labels or Project linkage
@@ -19,12 +19,9 @@ name: Slack Notify
 
 on:
   pull_request:
-    types: [opened, closed]
+    types: [opened, ready_for_review]
   issues:
-    types: [opened, closed]
-
-permissions:
-  actions: write
+    types: [opened]
 
 jobs:
   notify-pr:
@@ -32,26 +29,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ut61z/gh-slack-notify@v1
+      - uses: ut61z/gh-slack-notify@v2.0.0
         with:
           event_type: pull_request
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
 
   notify-issue:
     if: github.event_name == 'issues'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ut61z/gh-slack-notify@v1
+      - uses: ut61z/gh-slack-notify@v2.0.0
         with:
           event_type: issues
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
 ```
 
 ### Workflow Notifications
@@ -67,13 +62,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ut61z/gh-slack-notify@v1
+      - uses: ut61z/gh-slack-notify@v2.0.0
         with:
           event_type: workflow_run
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
           workflow_names: 'CI,Deploy'
           notify_on: 'success,failure'
 ```
@@ -91,13 +85,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ut61z/gh-slack-notify@v1
+      - uses: ut61z/gh-slack-notify@v2.0.0
         with:
           event_type: summary
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
 ```
 
 ## Inputs
@@ -114,10 +107,6 @@ jobs:
 | `workflow_names` | No | - | Comma-separated workflow names to notify |
 | `notify_on` | No | `success,failure` | `success`, `failure`, or both |
 | `base_branches` | No | `all` | Target base branches for PR notifications (e.g., `main`, `main,develop`) |
-| `encryption_key` | Yes* | - | Base64-encoded 32-byte key for state encryption |
-| `debug_mode` | No | `false` | Disable encryption for local development |
-
-\* `encryption_key` is required unless `debug_mode` is `true`
 
 ## Outputs
 
@@ -133,64 +122,35 @@ Your Slack App needs these OAuth Scopes:
 - `chat:write` - Send messages
 - `chat:write.public` - Post to public channels
 - `chat:delete` - Delete messages (for summary feature)
+- `channels:history` - Read channel history to find notifications (`groups:history` for private channels)
 
-## State Management
+## Message Tracking
 
-PR/Issue notifications are stored in GitHub Actions Artifacts to enable thread replies on Close/Merge events. All entries are encrypted with AES-256-GCM.
+Opened notifications carry Slack message metadata (`gh_slack_notify_item`), and each Daily Summary carries `gh_slack_notify_summary`. The summary reads the last 14 days of channel history to find them, so no state storage is needed. `encryption_key` and the `actions: write` permission are no longer required.
 
-### Encryption Setup (Required)
+## Closed / Merged
 
-#### 1. Generate an encryption key
+Closed and merged events are not notified individually, so you can drop `closed` from the `pull_request` / `issues` triggers. The summary fetches PRs and issues from the GitHub API for the period since the previous summary (24 hours when there is none):
 
-```bash
-openssl rand -base64 32
-```
-
-#### 2. Add to GitHub Secrets
-
-Go to **Settings > Secrets and variables > Actions > New repository secret**
-
-- Name: `SLACK_NOTIFY_ENCRYPTION_KEY`
-- Value: The generated base64 string
-
-#### 3. Pass to workflow
+- Opened PRs / issues: open items created (or, for PRs, marked ready for review) in the period, merged with the opened notifications found in the channel (deduplicated by number)
+- Merged / Closed PRs: draft PRs are excluded, and the label and base branch filters are applied
+- Opened / Closed issues: PRs are excluded, and the label filter is applied (`exclude_project_issues` also applies to opened issues)
+- The summary job needs these permissions:
 
 ```yaml
-jobs:
-  notify:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ut61z/gh-slack-notify@v1
-        with:
-          event_type: pull_request
-          slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
-          slack_channel: ${{ secrets.SLACK_CHANNEL_ID }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          encryption_key: ${{ secrets.SLACK_NOTIFY_ENCRYPTION_KEY }}
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
 ```
 
-Encrypted state file example:
+The summary deletes the opened notifications it consumed; Daily Summary messages are kept.
 
-```json
-{
-  "pull_requests": {
-    "11": "enc:iv==:encryptedData==:authTag=="
-  }
-}
-```
+Give the summary job the same filter inputs (`label_filter_mode`, `filter_labels`, `base_branches`, `exclude_project_issues`) as the notification jobs, otherwise the Opened section diverges from what was notified.
 
-### Debug Mode (Local Development)
+## Summary-only Operation
 
-For local development, set `INPUT_DEBUG_MODE=true` to disable encryption:
-
-```bash
-INPUT_DEBUG_MODE=true bun run dev
-```
-
-In debug mode, data is stored in plain JSON without encryption.
-
-When using as a GitHub Action, pass `debug_mode: 'true'` input instead.
+You can run only the summary job without the `pull_request` / `issues` notification jobs. Opened, merged and closed items are all collected from the GitHub API, and `chat:delete` is not used since there are no notifications to delete.
 
 ## License
 
