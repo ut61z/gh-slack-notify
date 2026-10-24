@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ut61z/gh-slack-notify@v1
+      - uses: ut61z/gh-slack-notify@v2.0.0
         with:
           event_type: pull_request
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ut61z/gh-slack-notify@v1
+      - uses: ut61z/gh-slack-notify@v2.0.0
         with:
           event_type: issues
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ut61z/gh-slack-notify@v1
+      - uses: ut61z/gh-slack-notify@v2.0.0
         with:
           event_type: workflow_run
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -85,7 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ut61z/gh-slack-notify@v1
+      - uses: ut61z/gh-slack-notify@v2.0.0
         with:
           event_type: summary
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
