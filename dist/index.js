@@ -18004,7 +18004,7 @@ var require_errors2 = __commonJS(function(exports) {
 var require_package = __commonJS(function(exports, module) {
   module.exports = {
     name: "@slack/web-api",
-    version: "8.2.0",
+    version: "8.3.0",
     description: "Official library for using the Slack Platform's Web API",
     author: "Slack Technologies, LLC",
     license: "MIT",
@@ -18053,7 +18053,7 @@ var require_package = __commonJS(function(exports, module) {
     },
     dependencies: {
       "@slack/logger": "^5.0.0",
-      "@slack/types": "^3.2.0",
+      "@slack/types": "^3.3.0",
       "@types/node": ">=20",
       "@types/retry": "0.12.5",
       eventemitter3: "^5.0.1",
@@ -18062,7 +18062,7 @@ var require_package = __commonJS(function(exports, module) {
       retry: "^0.13.1"
     },
     devDependencies: {
-      "@types/busboy": "^1.5.4",
+      "@types/busboy": "^1.5.5",
       "@types/sinon": "^22.0.0",
       busboy: "^1",
       nock: "^14.0.17",
@@ -19244,7 +19244,7 @@ var require_file_upload = __commonJS(function(exports) {
     const fileData = await getFileData(options);
     const fileDataBytesLength = getFileDataLength(fileData);
     const fileUploadJob = {
-      alt_text: options.alt_text,
+      alt_txt: options.alt_txt ?? options.alt_text,
       blocks: options.blocks,
       channel_id: options.channels ?? options.channel_id,
       filename: options.filename ?? fileName,
@@ -20211,6 +20211,8 @@ var require_methods = __commonJS(function(exports) {
       uninstall: bindApiCall(this, "apps.uninstall"),
       user: {
         connection: {
+          bulkUpdate: bindApiCall(this, "apps.user.connection.bulkUpdate"),
+          requestAuth: bindApiCall(this, "apps.user.connection.requestAuth"),
           update: bindApiCall(this, "apps.user.connection.update")
         }
       }
@@ -20252,6 +20254,7 @@ var require_methods = __commonJS(function(exports) {
       create: bindApiCallWithOptionalArgument(this, "canvases.create"),
       delete: bindApiCall(this, "canvases.delete"),
       edit: bindApiCall(this, "canvases.edit"),
+      getContent: bindApiCall(this, "canvases.getContent"),
       sections: {
         lookup: bindApiCall(this, "canvases.sections.lookup")
       }
@@ -20725,7 +20728,7 @@ var require_WebClient = __commonJS(function(exports) {
         const options = {
           filename: upload.filename,
           length: upload.length,
-          alt_text: upload.alt_text,
+          alt_txt: upload.alt_txt,
           snippet_type: upload.snippet_type
         };
         if ("token" in upload) {
