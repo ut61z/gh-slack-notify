@@ -18004,7 +18004,7 @@ var require_errors2 = __commonJS(function(exports) {
 var require_package = __commonJS(function(exports, module) {
   module.exports = {
     name: "@slack/web-api",
-    version: "8.3.0",
+    version: "8.4.0",
     description: "Official library for using the Slack Platform's Web API",
     author: "Slack Technologies, LLC",
     license: "MIT",
@@ -18063,7 +18063,7 @@ var require_package = __commonJS(function(exports, module) {
     },
     devDependencies: {
       "@types/busboy": "^1.5.5",
-      "@types/sinon": "^22.0.0",
+      "@types/sinon": "^22.0.2",
       busboy: "^1",
       nock: "^14.0.17",
       sinon: "^22.1.0",
@@ -20022,6 +20022,15 @@ var require_methods = __commonJS(function(exports) {
           lookup: bindApiCall(this, "admin.apps.config.lookup"),
           set: bindApiCall(this, "admin.apps.config.set")
         },
+        mcp: {
+          servers: {
+            list: bindApiCallWithOptionalArgument(this, "admin.apps.mcp.servers.list"),
+            permissions: {
+              list: bindApiCall(this, "admin.apps.mcp.servers.permissions.list"),
+              set: bindApiCall(this, "admin.apps.mcp.servers.permissions.set")
+            }
+          }
+        },
         requests: {
           cancel: bindApiCall(this, "admin.apps.requests.cancel"),
           list: bindApiCall(this, "admin.apps.requests.list")
@@ -20105,6 +20114,14 @@ var require_methods = __commonJS(function(exports) {
         addAssignments: bindApiCall(this, "admin.roles.addAssignments"),
         listAssignments: bindApiCallWithOptionalArgument(this, "admin.roles.listAssignments"),
         removeAssignments: bindApiCall(this, "admin.roles.removeAssignments")
+      },
+      slackbot: {
+        skills: {
+          list: bindApiCallWithOptionalArgument(this, "admin.slackbot.skills.list"),
+          publish: bindApiCall(this, "admin.slackbot.skills.publish"),
+          setAutoEnabled: bindApiCall(this, "admin.slackbot.skills.setAutoEnabled"),
+          unpublish: bindApiCall(this, "admin.slackbot.skills.unpublish")
+        }
       },
       teams: {
         admins: {
@@ -20395,6 +20412,19 @@ var require_methods = __commonJS(function(exports) {
       files: bindApiCall(this, "search.files"),
       messages: bindApiCall(this, "search.messages")
     };
+    slackbot = {
+      skills: {
+        create: bindApiCall(this, "slackbot.skills.create"),
+        delete: bindApiCall(this, "slackbot.skills.delete"),
+        info: bindApiCall(this, "slackbot.skills.info"),
+        library: {
+          add: bindApiCall(this, "slackbot.skills.library.add"),
+          remove: bindApiCall(this, "slackbot.skills.library.remove")
+        },
+        list: bindApiCallWithOptionalArgument(this, "slackbot.skills.list"),
+        update: bindApiCall(this, "slackbot.skills.update")
+      }
+    };
     slackLists = {
       access: {
         delete: bindApiCall(this, "slackLists.access.delete"),
@@ -20546,7 +20576,6 @@ var require_WebClient = __commonJS(function(exports) {
   exports.buildThreadTsWarningMessage = buildThreadTsWarningMessage;
   var node_path_1 = __require("node:path");
   var node_querystring_1 = __require("node:querystring");
-  var node_util_1 = __require("node:util");
   var node_zlib_1 = __importDefault(__require("node:zlib"));
   var p_queue_1 = __importDefault(require_dist2());
   var p_retry_1 = __importStar(require_p_retry());
@@ -20622,11 +20651,10 @@ var require_WebClient = __commonJS(function(exports) {
       if (options.token)
         headers.Authorization = `Bearer ${options.token}`;
       const url = this.deriveRequestUrl(method);
-      const response = await this.makeRequest(url, {
+      const { response, result } = await this.makeRequest(url, {
         team_id: this.teamId,
         ...options
-      }, headers);
-      const result = await this.buildResult(response);
+      }, headers, async (response) => ({ response, result: await this.buildResult(response) }));
       this.logger.debug(`http request result: ${JSON.stringify(redact(result))}`);
       if (result.response_metadata !== undefined && result.response_metadata.warnings !== undefined) {
         result.response_metadata.warnings.forEach(this.logger.warn.bind(this.logger));
@@ -20749,13 +20777,9 @@ var require_WebClient = __commonJS(function(exports) {
           const headers = {};
           if (options.token)
             headers.Authorization = `Bearer ${options.token}`;
-          const uploadRes = await this.makeRequest(upload_url, {
+          const responseBody = await this.makeRequest(upload_url, {
             body
-          }, headers);
-          if (uploadRes.status !== 200) {
-            return Promise.reject(Error(`Failed to upload file (id:${file_id}, filename: ${filename})`));
-          }
-          const responseBody = await uploadRes.text();
+          }, headers, (response) => response.text());
           const returnData = { ok: true, body: responseBody };
           return Promise.resolve(returnData);
         }
@@ -20772,7 +20796,7 @@ var require_WebClient = __commonJS(function(exports) {
       }
       return fileUploads;
     }
-    async makeRequest(url, body, headers = {}) {
+    async makeRequest(url, body, headers, parseResponse) {
       const task = () => this.requestQueue.add(async () => {
         if (url.endsWith("/apps.event.authorizations.list")) {
           body.token = undefined;
@@ -20811,7 +20835,7 @@ var require_WebClient = __commonJS(function(exports) {
             const responseBody = await response.text();
             throw new errors_1.WebAPIHTTPError(response.status, response.statusText, Object.fromEntries(response.headers.entries()), responseBody);
           }
-          return response;
+          return await parseResponse(response);
         } catch (error) {
           if (error instanceof p_retry_1.AbortError) {
             throw error;
@@ -20885,8 +20909,8 @@ var require_WebClient = __commonJS(function(exports) {
       const isGzipResponse = contentType === "application/gzip";
       let data;
       if (isGzipResponse) {
+        const buffer = Buffer.from(await response.arrayBuffer());
         try {
-          const buffer = Buffer.from(await response.arrayBuffer());
           const unzippedData = await new Promise((resolve, reject) => {
             node_zlib_1.default.unzip(buffer, (err, buf) => {
               if (err) {
@@ -20908,9 +20932,6 @@ var require_WebClient = __commonJS(function(exports) {
         } catch (err) {
           data = { ok: false, error: err };
         }
-      } else if (!isGzipResponse && response.url.endsWith("/admin.analytics.getFile")) {
-        const buffer = await response.arrayBuffer();
-        data = JSON.parse(new node_util_1.TextDecoder().decode(buffer));
       } else {
         const text = await response.text();
         try {
