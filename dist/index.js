@@ -18004,7 +18004,7 @@ var require_errors2 = __commonJS(function(exports) {
 var require_package = __commonJS(function(exports, module) {
   module.exports = {
     name: "@slack/web-api",
-    version: "8.4.0",
+    version: "8.5.0",
     description: "Official library for using the Slack Platform's Web API",
     author: "Slack Technologies, LLC",
     license: "MIT",
@@ -18053,7 +18053,7 @@ var require_package = __commonJS(function(exports, module) {
     },
     dependencies: {
       "@slack/logger": "^5.0.0",
-      "@slack/types": "^3.3.0",
+      "@slack/types": "^3.3.1",
       "@types/node": ">=20",
       "@types/retry": "0.12.5",
       eventemitter3: "^5.0.1",
@@ -20203,6 +20203,10 @@ var require_methods = __commonJS(function(exports) {
       test: bindApiCallWithOptionalArgument(this, "api.test")
     };
     assistant = {
+      search: {
+        context: bindApiCall(this, "assistant.search.context"),
+        info: bindApiCallWithOptionalArgument(this, "assistant.search.info")
+      },
       threads: {
         setStatus: bindApiCall(this, "assistant.threads.setStatus"),
         setSuggestedPrompts: bindApiCall(this, "assistant.threads.setSuggestedPrompts"),
@@ -20216,6 +20220,14 @@ var require_methods = __commonJS(function(exports) {
       event: {
         authorizations: {
           list: bindApiCall(this, "apps.event.authorizations.list")
+        }
+      },
+      icon: {
+        set: bindApiCall(this, "apps.icon.set")
+      },
+      managed: {
+        permissions: {
+          set: bindApiCall(this, "apps.managed.permissions.set")
         }
       },
       manifest: {
